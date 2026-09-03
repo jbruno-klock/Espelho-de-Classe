@@ -1,0 +1,8 @@
+{
+  "name": "Gerador de Espelhos de Classe",
+  "description": "Plataforma completa para gestão de turmas, configuração de afinidades e desafinidades entre alunos, geração automática inteligente de mapas de sala e exportação em PDF para impressão.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

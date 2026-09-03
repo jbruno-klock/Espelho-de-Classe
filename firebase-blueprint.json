@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "Institution": {
+      "title": "Institution",
+      "description": "Educational institutions registered in the platform",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "code"]
+    },
+    "AppUser": {
+      "title": "AppUser",
+      "description": "Users of the system (Masters, Institutional Managers, Teachers)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "institutionId": { "type": "string" },
+        "password": { "type": "string" },
+        "avatarColor": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Classroom": {
+      "title": "Classroom",
+      "description": "Classrooms with seating layouts and enrolled students",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "institutionId": { "type": "string" },
+        "name": { "type": "string" },
+        "grade": { "type": "string" },
+        "period": { "type": "string" },
+        "roomRows": { "type": "number" },
+        "roomCols": { "type": "number" },
+        "students": { "type": "array" },
+        "layoutConfig": { "type": "object" },
+        "seatingMap": { "type": "object" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "institutionId", "name", "roomRows", "roomCols"]
+    }
+  },
+  "firestore": {
+    "institutions": {
+      "entity": "Institution",
+      "description": "Collection of institutions"
+    },
+    "users": {
+      "entity": "AppUser",
+      "description": "Collection of registered users"
+    },
+    "classrooms": {
+      "entity": "Classroom",
+      "description": "Collection of classrooms and seating maps"
+    }
+  }
+}

@@ -1,0 +1,559 @@
+@import "tailwindcss";
+
+@layer base {
+  :root, :root.dark {
+    color-scheme: dark;
+    --bg-app: #0a0a0c;
+    --bg-surface: #121216;
+    --bg-surface-sub: #18181f;
+    --text-main: #f4f4f6;
+  }
+
+  :root.light {
+    color-scheme: light;
+    --bg-app: #f4f6f9;
+    --bg-surface: #ffffff;
+    --bg-surface-sub: #f8fafc;
+    --text-main: #0f172a;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: #0a0a0c;
+    color: #e2e2e8;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: 'Outfit', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* Light mode overrides */
+.light body {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Modal Backdrops & Overlays */
+.light .bg-black\/80,
+.light .bg-black\/70,
+.light .bg-black\/60,
+.light .bg-black\/50,
+.light .bg-black\/40 {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+}
+
+/* Eliminate all dark surfaces, bars and containers in Light Mode */
+.light .bg-\[\#0a0a0c\],
+.light .bg-\[\#08080a\],
+.light .bg-\[\#0e0e12\],
+.light .bg-\[\#0c0c10\],
+.light .bg-\[\#0a0a0d\],
+.light .bg-\[\#0a0a0d\]\/80 {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.light .bg-\[\#121216\],
+.light .bg-\[\#16161b\],
+.light .bg-\[\#171418\],
+.light .bg-\[\#16161c\],
+.light .bg-\[\#121418\],
+.light .bg-\[\#161a20\],
+.light .bg-\[\#13131a\],
+.light .bg-\[\#15151c\],
+.light .bg-\[\#0f1015\],
+.light .bg-\[\#121216\]\/90,
+.light .bg-\[\#121216\]\/80,
+.light .bg-\[\#121216\]\/60 {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+}
+
+.light .bg-\[\#18181f\],
+.light .bg-\[\#181820\],
+.light .bg-\[\#181822\],
+.light .bg-\[\#14141a\],
+.light .bg-\[\#181c22\],
+.light .bg-\[\#1a1e26\],
+.light .bg-\[\#1c1c26\],
+.light .bg-\[\#18181f\]\/90,
+.light .bg-\[\#18181f\]\/80,
+.light .bg-\[\#18181f\]\/70,
+.light .bg-\[\#1f1f28\],
+.light .bg-\[\#282834\] {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+}
+
+.light .bg-\[\#202028\],
+.light .bg-\[\#22222a\],
+.light .bg-\[\#1e1e27\],
+.light .bg-\[\#1c1c24\],
+.light .bg-\[\#272730\] {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.light .bg-zinc-950,
+.light .bg-zinc-950\/40,
+.light .bg-zinc-950\/50,
+.light .bg-zinc-950\/60,
+.light .bg-zinc-950\/80,
+.light .bg-zinc-900,
+.light .bg-zinc-900\/80,
+.light .bg-zinc-900\/50,
+.light .bg-zinc-900\/30,
+.light .bg-zinc-900\/20 {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+/* Secondary Buttons & Neutral Controls in Light Mode */
+.light button.bg-zinc-800,
+.light button.bg-zinc-700,
+.light button.bg-zinc-900,
+.light .bg-zinc-800,
+.light .bg-zinc-800\/80,
+.light .bg-zinc-800\/60,
+.light .bg-zinc-800\/40,
+.light .bg-zinc-700,
+.light .bg-zinc-700\/80,
+.light .bg-zinc-700\/60 {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light button.bg-zinc-800:hover,
+.light button.bg-zinc-700:hover,
+.light button.bg-zinc-900:hover,
+.light .hover\:bg-zinc-800:hover,
+.light .hover\:bg-zinc-700:hover,
+.light .hover\:bg-zinc-800\/80:hover,
+.light .hover\:bg-zinc-800\/70:hover,
+.light .hover\:bg-zinc-800\/40:hover,
+.light .hover\:bg-zinc-800\/50:hover,
+.light .hover\:bg-\[\#202028\]:hover,
+.light .hover\:bg-\[\#22222a\]:hover,
+.light .hover\:bg-\[\#282834\]:hover,
+.light .hover\:bg-\[\#1e1e27\]:hover,
+.light .hover\:bg-\[\#18181f\]:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* Solid primary action buttons */
+.light .bg-emerald-600,
+.light .bg-emerald-500,
+.light .bg-indigo-600,
+.light .bg-indigo-500,
+.light .bg-purple-600,
+.light .bg-purple-500,
+.light .bg-rose-600,
+.light .bg-rose-500,
+.light .bg-blue-600,
+.light .bg-amber-600 {
+  color: #ffffff !important;
+}
+
+.light .bg-\[\#1a1714\],
+.light .bg-\[\#161310\] {
+  background-color: #fffbeb !important;
+  border-color: #fde68a !important;
+  color: #92400e !important;
+}
+
+.light .bg-\[\#201c18\] {
+  background-color: #ffffff !important;
+  border-color: #fcd34d !important;
+  color: #92400e !important;
+}
+
+.light .bg-\[\#221417\] {
+  background-color: #fff1f2 !important;
+  border-color: #fecdd3 !important;
+  color: #9f1239 !important;
+}
+
+.light .border-amber-950\/70,
+.light .border-amber-800\/40 {
+  border-color: #cbd5e1 !important;
+}
+
+.light .from-\[\#121216\] {
+  --tw-gradient-from: #ffffff !important;
+}
+.light .via-\[\#16161f\] {
+  --tw-gradient-stops: #ffffff, #f8fafc, #ffffff !important;
+}
+.light .to-\[\#121216\] {
+  --tw-gradient-to: #ffffff !important;
+}
+
+/* Borders */
+.light .border-zinc-800,
+.light .border-zinc-800\/80,
+.light .border-zinc-800\/60,
+.light .border-zinc-800\/50,
+.light .border-zinc-800\/40,
+.light .border-zinc-800\/30 {
+  border-color: #cbd5e1 !important;
+}
+
+.light .border-zinc-700,
+.light .border-zinc-700\/80,
+.light .border-zinc-700\/60,
+.light .border-zinc-700\/40 {
+  border-color: #cbd5e1 !important;
+}
+
+.light .border-zinc-900,
+.light .border-zinc-900\/40 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Typography & High Contrast Colors */
+.light .text-white:not(.bg-emerald-600 *):not(.bg-indigo-600 *):not(.bg-purple-600 *):not(.bg-rose-600 *):not(.bg-slate-900 *):not(.blackboard-banner *):not(#blackboard-banner *) {
+  color: #0f172a !important;
+}
+
+.light .text-zinc-100 {
+  color: #0f172a !important;
+}
+
+.light .text-zinc-200 {
+  color: #1e293b !important;
+}
+
+.light .text-zinc-300 {
+  color: #334155 !important;
+}
+
+.light .text-zinc-400 {
+  color: #475569 !important;
+}
+
+.light .text-zinc-500 {
+  color: #64748b !important;
+}
+
+.light .text-zinc-600 {
+  color: #64748b !important;
+}
+
+.light .hover\:text-zinc-100:hover,
+.light .hover\:text-zinc-200:hover,
+.light .hover\:text-zinc-300:hover,
+.light .hover\:text-white:hover {
+  color: #0f172a !important;
+}
+
+/* Inputs, Selects, and Textareas */
+.light input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.light select,
+.light textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
+}
+
+.light input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+.light select:focus,
+.light textarea:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 2px rgb(99 102 241 / 0.2) !important;
+}
+
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+.light optgroup,
+.light option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* Desks in Classroom Seating Grid */
+.light .h-28.border,
+.light .min-h-\[76px\].border,
+.light .min-h-\[72px\].border {
+  border-color: #cbd5e1 !important;
+}
+
+/* Tables & Dividers */
+.light thead {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light thead th {
+  color: #0f172a !important;
+}
+
+.light tbody tr:hover {
+  background-color: #f8fafc !important;
+}
+
+.light .divide-zinc-800\/80,
+.light .divide-zinc-800,
+.light .divide-zinc-700 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Accented Badges & Tints in Light Mode */
+.light .bg-emerald-950\/40,
+.light .bg-emerald-950\/50,
+.light .bg-emerald-950\/30,
+.light .bg-emerald-950\/20,
+.light .bg-emerald-500\/20,
+.light .bg-emerald-500\/15,
+.light .bg-emerald-500\/10 {
+  background-color: #dcfce7 !important;
+}
+.light .text-emerald-400,
+.light .text-emerald-300,
+.light .text-emerald-200 {
+  color: #065f46 !important;
+  font-weight: 700 !important;
+}
+.light .border-emerald-800\/40,
+.light .border-emerald-500\/40,
+.light .border-emerald-500\/30,
+.light .border-emerald-500\/20,
+.light .border-emerald-400\/50,
+.light .border-emerald-400\/40 {
+  border-color: #86efac !important;
+}
+
+.light .bg-purple-950\/40,
+.light .bg-purple-950\/50,
+.light .bg-purple-950\/30,
+.light .bg-purple-950\/20,
+.light .bg-purple-500\/20,
+.light .bg-purple-500\/15,
+.light .bg-purple-500\/10 {
+  background-color: #f3e8ff !important;
+}
+.light .text-purple-200,
+.light .text-purple-300,
+.light .text-purple-400 {
+  color: #581c87 !important;
+  font-weight: 700 !important;
+}
+.light .border-purple-800\/40,
+.light .border-purple-500\/40,
+.light .border-purple-500\/30,
+.light .border-purple-500\/20,
+.light .border-purple-400\/50,
+.light .border-purple-400\/40 {
+  border-color: #d8b4fe !important;
+}
+
+.light .bg-amber-950\/40,
+.light .bg-amber-950\/50,
+.light .bg-amber-950\/30,
+.light .bg-amber-950\/20,
+.light .bg-amber-500\/20,
+.light .bg-amber-500\/10 {
+  background-color: #fef3c7 !important;
+}
+.light .text-amber-200,
+.light .text-amber-300,
+.light .text-amber-400 {
+  color: #92400e !important;
+  font-weight: 700 !important;
+}
+.light .border-amber-800\/40,
+.light .border-amber-500\/40,
+.light .border-amber-500\/30,
+.light .border-amber-500\/20 {
+  border-color: #fcd34d !important;
+}
+
+.light .bg-rose-950\/40,
+.light .bg-rose-950\/50,
+.light .bg-rose-950\/30,
+.light .bg-rose-950\/20,
+.light .bg-rose-500\/20,
+.light .bg-rose-500\/10 {
+  background-color: #ffe4e6 !important;
+}
+.light .text-rose-200,
+.light .text-rose-300,
+.light .text-rose-400 {
+  color: #9f1239 !important;
+  font-weight: 700 !important;
+}
+.light .border-rose-900\/40,
+.light .border-rose-800\/40,
+.light .border-rose-500\/40,
+.light .border-rose-500\/20,
+.light .border-rose-900\/30,
+.light .border-rose-950\/40 {
+  border-color: #fda4af !important;
+}
+
+.light .bg-indigo-950\/50,
+.light .bg-indigo-950\/40,
+.light .bg-indigo-950\/30,
+.light .bg-indigo-950\/20 {
+  background-color: #eef2ff !important;
+}
+.light .text-indigo-300,
+.light .text-indigo-400 {
+  color: #4338ca !important;
+  font-weight: 600;
+}
+.light .border-indigo-800\/40,
+.light .border-indigo-500\/30 {
+  border-color: #a5b4fc !important;
+}
+
+.light .bg-blue-950\/40,
+.light .bg-blue-950\/30 {
+  background-color: #eff6ff !important;
+}
+.light .text-blue-300,
+.light .text-blue-400 {
+  color: #1d4ed8 !important;
+  font-weight: 600;
+}
+.light .border-blue-800\/40 {
+  border-color: #93c5fd !important;
+}
+
+/* Custom dark and light scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #121216;
+}
+::-webkit-scrollbar-thumb {
+  background: #272730;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f4e;
+}
+
+.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Print optimizations */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+}
+
+.print-only {
+  display: none;
+}
+
+/* Printable Document & Chalkboard Contrast Fixes */
+.blackboard-banner,
+.light .blackboard-banner,
+#blackboard-banner,
+.light #blackboard-banner,
+#printable-document-content .bg-slate-900,
+.light #printable-document-content .bg-slate-900,
+#printable-document-content [style*="background-color: rgb(15, 23, 42)"],
+.light #printable-document-content [style*="background-color: rgb(15, 23, 42)"] {
+  background-color: #0f172a !important;
+  color: #ffffff !important;
+}
+
+.blackboard-banner *,
+.light .blackboard-banner *,
+#blackboard-banner *,
+.light #blackboard-banner *,
+#printable-document-content .bg-slate-900 *,
+.light #printable-document-content .bg-slate-900 *,
+#printable-document-content [style*="background-color: rgb(15, 23, 42)"] *,
+.light #printable-document-content [style*="background-color: rgb(15, 23, 42)"] * {
+  color: #ffffff !important;
+}
+
+/* Light mode contrast enhancements for Student Modal & Affinity Matrix */
+.light .affinity-card-item {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #064e3b !important;
+}
+
+.light .anti-affinity-card-item {
+  background-color: #fff1f2 !important;
+  border-color: #fecdd3 !important;
+  color: #881337 !important;
+}
+
+.light .matrix-table th {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light .matrix-table td {
+  border-color: #e2e8f0 !important;
+}
+
+.light .matrix-row-header {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light .matrix-cell-neutral {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+.light .matrix-cell-neutral:hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+
+
