@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import {
   Building2, Users, Shield, Plus, Edit2, Trash2, CheckCircle2,
   AlertCircle, Search, Filter, Lock, Unlock, Eye, ArrowRight,
-  School, UserPlus, Sparkles, LogOut, Check
+  School, UserPlus, Sparkles, LogOut, Check, GraduationCap,
+  Calendar, Layers, MapPin
 } from 'lucide-react';
 import { Institution, AppUser, Classroom } from '../types';
 import { DeleteInstitutionModal } from './DeleteInstitutionModal';
@@ -21,6 +22,7 @@ interface MasterAdminDashboardProps {
   onDeleteUser: (id: string) => void;
   onSwitchSimulatedUser: (user: AppUser) => void;
   onEnterInstitutionAsMaster: (institutionId: string) => void;
+  onEnterClassroomAsMaster?: (institutionId: string, classroomId: string) => void;
 }
 
 export const MasterAdminDashboard: React.FC<MasterAdminDashboardProps> = ({
@@ -36,34 +38,73 @@ export const MasterAdminDashboard: React.FC<MasterAdminDashboardProps> = ({
   onDeleteUser,
   onSwitchSimulatedUser,
   onEnterInstitutionAsMaster,
+  onEnterClassroomAsMaster,
 }) => {
-  const [activeTab, setActiveTab] = useState<'institutions' | 'users' | 'overview'>('institutions');
+  const [activeTab, setActiveTab] = useState<'institutions' | 'classrooms' | 'users'>('institutions');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [selectedInstitutionFilter, setSelectedInstitutionFilter] = useState<string>('all');
 
   // Deletion Modals State
   const [institutionToDelete, setInstitutionToDelete] = useState<Institution | null>(null);
   const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
 
+  // Filter out any orphaned classrooms that don't belong to any registered institution
+  const validClassrooms = React.useMemo(() => {
+    return classrooms.filter(c => 
+      institutions.length === 0 || institutions.some(i => i.id === c.institutionId)
+    );
+  }, [classrooms, institutions]);
+
+  // Target classrooms according to institution filter
+  const targetClassrooms = React.useMemo(() => {
+    if (selectedInstitutionFilter === 'all') return validClassrooms;
+    return validClassrooms.filter(c => c.institutionId === selectedInstitutionFilter);
+  }, [validClassrooms, selectedInstitutionFilter]);
+
+  // Target users according to institution filter
+  const targetUsers = React.useMemo(() => {
+    if (selectedInstitutionFilter === 'all') return users;
+    return users.filter(u => u.institutionId === selectedInstitutionFilter || u.role === 'master');
+  }, [users, selectedInstitutionFilter]);
+
+  // Real, accurate statistics calculation
+  const totalInstitutions = institutions.length;
+  const totalManagers = targetUsers.filter(u => u.role === 'manager').length;
+  const totalClassrooms = targetClassrooms.length;
+  const totalStudents = targetClassrooms.reduce((acc, c) => acc + (c.students?.length || 0), 0);
+  const averageStudents = totalClassrooms > 0 ? (totalStudents / totalClassrooms).toFixed(1) : '0';
+
+  // Filtered lists for rendering based on search and filters
   const filteredInstitutions = institutions.filter(inst => {
     const matchesSearch = inst.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       inst.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (inst.city && inst.city.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || inst.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesInstFilter = selectedInstitutionFilter === 'all' || inst.id === selectedInstitutionFilter;
+    return matchesSearch && matchesStatus && matchesInstFilter;
   });
 
-  const filteredUsers = users.filter(user => {
+  const filteredClassrooms = targetClassrooms.filter(cls => {
+    const term = searchQuery.toLowerCase();
+    const inst = institutions.find(i => i.id === cls.institutionId);
+    return (
+      cls.name.toLowerCase().includes(term) ||
+      (cls.grade && cls.grade.toLowerCase().includes(term)) ||
+      (cls.schoolName && cls.schoolName.toLowerCase().includes(term)) ||
+      (cls.roomNumber && cls.roomNumber.toLowerCase().includes(term)) ||
+      (cls.teacherName && cls.teacherName.toLowerCase().includes(term)) ||
+      (inst && (inst.name.toLowerCase().includes(term) || inst.code.toLowerCase().includes(term)))
+    );
+  });
+
+  const filteredUsers = targetUsers.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
   });
 
-  // Calculate statistics
-  const totalInstitutions = institutions.length;
-  const totalManagers = users.filter(u => u.role === 'manager').length;
-  const totalClassrooms = classrooms.length;
-  const totalStudents = classrooms.reduce((acc, c) => acc + (c.students?.length || 0), 0);
+  const activeFilterInstitution = institutions.find(i => i.id === selectedInstitutionFilter);
 
   return (
     <div id="master-admin-dashboard" className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6 animate-in fade-in duration-300">
@@ -87,7 +128,7 @@ export const MasterAdminDashboard: React.FC<MasterAdminDashboardProps> = ({
                 Painel Master de Instituições & Gestores
               </h1>
               <p className="text-xs text-slate-600 dark:text-zinc-400 max-w-2xl mt-1">
-                Você tem permissão total para gerenciar instituições parceiras, credenciar gestores escolares e auditar turmas de todas as unidades com isolamento rigoroso.
+                Auditoria e controle centralizado de instituições, gestores e turmas reais sincronizadas com a nuvem.
               </p>
             </div>
           </div>
@@ -112,7 +153,7 @@ export const MasterAdminDashboard: React.FC<MasterAdminDashboardProps> = ({
           </div>
         </div>
 
-        {/* Global Key Metrics Grid */}
+        {/* Global Key Metrics Grid (Real data strictly synchronized) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-slate-200 dark:border-zinc-800/80">
           <div className="p-3.5 bg-white dark:bg-[#18181f] rounded-2xl border border-slate-200 dark:border-zinc-700/80 shadow-xs">
             <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-300 block mb-1">Instituições Ativas</span>
@@ -131,30 +172,97 @@ export const MasterAdminDashboard: React.FC<MasterAdminDashboardProps> = ({
           </div>
 
           <div className="p-3.5 bg-white dark:bg-[#18181f] rounded-2xl border border-slate-200 dark:border-zinc-700/80 shadow-xs">
-            <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-300 block mb-1">Total de Turmas</span>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-300">Total de Turmas</span>
+              {selectedInstitutionFilter !== 'all' && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 rounded">
+                  Filtrado
+                </span>
+              )}
+            </div>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{totalClassrooms}</span>
-              <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-bold">Salas</span>
+              <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-bold">Salas Reais</span>
             </div>
           </div>
 
           <div className="p-3.5 bg-white dark:bg-[#18181f] rounded-2xl border border-slate-200 dark:border-zinc-700/80 shadow-xs">
-            <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-300 block mb-1">Total de Alunos</span>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-300">Total de Alunos</span>
+              {totalClassrooms > 0 && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 rounded">
+                  Média: {averageStudents}/sala
+                </span>
+              )}
+            </div>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-black text-amber-600 dark:text-amber-300">{totalStudents}</span>
-              <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-bold">Cadastrados</span>
+              <span className="text-[10px] text-slate-500 dark:text-zinc-400 font-bold">Matriculados</span>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Controls & Scope Filter Bar */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-100 dark:bg-[#18181f]/80 p-3 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5 pl-1">
+            <Filter className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+            Escopo da Visualização:
+          </span>
+          <select
+            id="master-institution-filter"
+            value={selectedInstitutionFilter}
+            onChange={(e) => setSelectedInstitutionFilter(e.target.value)}
+            className="bg-white dark:bg-[#121216] border border-slate-300 dark:border-zinc-700 rounded-xl text-xs font-bold py-1.5 px-3 text-slate-900 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer shadow-xs"
+          >
+            <option value="all">Todas as Unidades (Visão Global)</option>
+            {institutions.map(inst => (
+              <option key={inst.id} value={inst.id}>
+                {inst.name} ({inst.code})
+              </option>
+            ))}
+          </select>
+          {selectedInstitutionFilter !== 'all' && (
+            <button
+              onClick={() => setSelectedInstitutionFilter('all')}
+              className="text-[11px] text-purple-600 dark:text-purple-400 hover:underline font-bold cursor-pointer"
+            >
+              Limpar filtro
+            </button>
+          )}
+        </div>
+
+        {/* Status Filter for institutions tab */}
+        {activeTab === 'institutions' && (
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="text-slate-500 dark:text-zinc-400 font-medium">Status:</span>
+            <div className="flex bg-white dark:bg-[#121216] p-0.5 rounded-xl border border-slate-300 dark:border-zinc-700">
+              {(['all', 'active', 'inactive'] as const).map(st => (
+                <button
+                  key={st}
+                  onClick={() => setStatusFilter(st)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold capitalize transition-all cursor-pointer ${
+                    statusFilter === st
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+                  }`}
+                >
+                  {st === 'all' ? 'Todas' : st === 'active' ? 'Ativas' : 'Inativas'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Navigation Tabs */}
-      <div className="flex items-center justify-between gap-4 border-b border-slate-200 dark:border-zinc-800 pb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-4 border-b border-slate-200 dark:border-zinc-800 pb-3 flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto">
           <button
             id="tab-institutions-btn"
             onClick={() => setActiveTab('institutions')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'institutions'
                 ? 'bg-purple-600 text-white shadow-xs'
                 : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-[#18181f] hover:bg-slate-200 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-700/80'
@@ -165,27 +273,40 @@ export const MasterAdminDashboard: React.FC<MasterAdminDashboardProps> = ({
           </button>
 
           <button
+            id="tab-classrooms-btn"
+            onClick={() => setActiveTab('classrooms')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'classrooms'
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-[#18181f] hover:bg-slate-200 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-700/80'
+            }`}
+          >
+            <GraduationCap className="w-4 h-4" />
+            Turmas & Alunos ({targetClassrooms.length})
+          </button>
+
+          <button
             id="tab-users-btn"
             onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'users'
                 ? 'bg-purple-600 text-white shadow-xs'
                 : 'text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-[#18181f] hover:bg-slate-200 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-700/80'
             }`}
           >
             <Users className="w-4 h-4" />
-            Usuários & Gestores ({users.length})
+            Usuários & Gestores ({targetUsers.length})
           </button>
         </div>
 
         {/* Search Bar */}
-        <div className="relative w-64 hidden sm:block">
+        <div className="relative w-full sm:w-64">
           <Search className="w-4 h-4 text-slate-400 dark:text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={`Buscar em ${activeTab === 'institutions' ? 'instituições' : 'usuários'}...`}
+            placeholder={`Buscar ${activeTab === 'institutions' ? 'instituições' : activeTab === 'classrooms' ? 'turmas ou séries' : 'usuários'}...`}
             className="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-[#18181f] border border-slate-300 dark:border-zinc-700 rounded-xl text-xs text-slate-900 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-xs"
           />
         </div>
@@ -197,7 +318,7 @@ export const MasterAdminDashboard: React.FC<MasterAdminDashboardProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredInstitutions.map((inst) => {
               const instManagers = users.filter(u => u.institutionId === inst.id);
-              const instClassrooms = classrooms.filter(c => c.institutionId === inst.id);
+              const instClassrooms = validClassrooms.filter(c => c.institutionId === inst.id);
               const instStudents = instClassrooms.reduce((acc, c) => acc + (c.students?.length || 0), 0);
 
               return (
@@ -266,14 +387,14 @@ export const MasterAdminDashboard: React.FC<MasterAdminDashboardProps> = ({
                   </div>
 
                   {/* Actions Bar */}
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-zinc-700/80 gap-2">
+                  <div className="pt-3 border-t border-slate-100 dark:border-zinc-800/80 flex items-center justify-between gap-2">
                     <button
                       onClick={() => onEnterInstitutionAsMaster(inst.id)}
                       title="Entrar no painel desta instituição como Master"
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-purple-100 hover:bg-purple-200 dark:bg-purple-950/60 dark:hover:bg-purple-900/80 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-500/40 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+                      className="flex-1 px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
                     >
-                      <Eye className="w-3.5 h-3.5" />
-                      Acessar Turmas
+                      <ArrowRight className="w-3.5 h-3.5" />
+                      Entrar na Unidade
                     </button>
 
                     <button
@@ -299,7 +420,117 @@ export const MasterAdminDashboard: React.FC<MasterAdminDashboardProps> = ({
         </div>
       )}
 
-      {/* TAB 2: USERS & MANAGERS LIST */}
+      {/* TAB 2: CLASSROOMS & STUDENTS LIST */}
+      {activeTab === 'classrooms' && (
+        <div className="space-y-4">
+          {filteredClassrooms.length === 0 ? (
+            <div className="p-12 text-center bg-white dark:bg-[#121216] rounded-3xl border border-slate-200 dark:border-zinc-800">
+              <GraduationCap className="w-12 h-12 mx-auto text-slate-400 mb-3" />
+              <h3 className="font-bold text-slate-800 dark:text-zinc-200">Nenhuma turma encontrada</h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+                {searchQuery ? 'Tente ajustar os termos da busca.' : 'Não há turmas cadastradas para o filtro selecionado.'}
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-[#121216] rounded-3xl border border-slate-200 dark:border-zinc-700/80 overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-800 dark:text-zinc-200">
+                  <thead className="bg-slate-50 dark:bg-[#181822] text-slate-700 dark:text-zinc-200 font-bold border-b border-slate-200 dark:border-zinc-700 text-[11px] uppercase tracking-wider">
+                    <tr>
+                      <th className="px-5 py-3.5">Turma / Sala</th>
+                      <th className="px-5 py-3.5">Instituição</th>
+                      <th className="px-5 py-3.5">Série / Nível</th>
+                      <th className="px-5 py-3.5 text-center">Total de Alunos</th>
+                      <th className="px-5 py-3.5 text-center">Status do Espelho</th>
+                      <th className="px-5 py-3.5 text-right">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/80">
+                    {filteredClassrooms.map((cls) => {
+                      const inst = institutions.find(i => i.id === cls.institutionId);
+                      const totalStds = cls.students?.length || 0;
+                      const placedCount = Object.keys(cls.seatingMap || {}).length;
+
+                      return (
+                        <tr key={cls.id} className="hover:bg-slate-50 dark:hover:bg-[#18181f] transition-colors">
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-black text-xs flex items-center justify-center shrink-0 border border-emerald-300 dark:border-emerald-500/30">
+                                {cls.name.slice(0, 3)}
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-zinc-100 text-xs block">
+                                  Turma {cls.name}
+                                </span>
+                                <span className="text-[10px] text-slate-500 dark:text-zinc-400">
+                                  {cls.roomNumber || 'Sala Padrão'} {cls.academicYear ? `• Ano ${cls.academicYear}` : ''}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-3.5">
+                            {inst ? (
+                              <div className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-zinc-200">
+                                <Building2 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                                <span>{inst.name}</span>
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 rounded border border-purple-200 dark:border-purple-800">
+                                  {inst.code}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 dark:text-zinc-400">Sem instituição</span>
+                            )}
+                          </td>
+
+                          <td className="px-5 py-3.5 font-medium text-slate-600 dark:text-zinc-400">
+                            {cls.grade || 'Ensino Médio'}
+                          </td>
+
+                          <td className="px-5 py-3.5 text-center">
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-400/50 shadow-xs">
+                              {totalStds} alunos
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-3.5 text-center">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              placedCount > 0
+                                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/30'
+                                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700'
+                            }`}>
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                              {placedCount > 0 ? `${placedCount} carteiras definidas` : 'Pendente'}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                            <button
+                              onClick={() => {
+                                if (onEnterClassroomAsMaster) {
+                                  onEnterClassroomAsMaster(cls.institutionId, cls.id);
+                                } else {
+                                  onEnterInstitutionAsMaster(cls.institutionId);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                            >
+                              <span>Acessar Espelho</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: USERS & MANAGERS LIST */}
       {activeTab === 'users' && (
         <div className="space-y-4">
           <div className="bg-white dark:bg-[#121216] rounded-3xl border border-slate-200 dark:border-zinc-700/80 overflow-hidden shadow-sm">

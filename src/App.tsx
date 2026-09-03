@@ -595,6 +595,12 @@ export default function App() {
     setActiveTab('map');
   };
 
+  const handleEnterClassroomAsMaster = (instId: string, classroomId: string) => {
+    setMasterSelectedInstitutionId(instId);
+    setActiveClassroomId(classroomId);
+    setActiveTab('map');
+  };
+
   const handleLogout = () => {
     setCurrentUser(null);
   };
@@ -733,6 +739,7 @@ export default function App() {
             onDeleteUser={handleDeleteUser}
             onSwitchSimulatedUser={handleSwitchSimulatedUser}
             onEnterInstitutionAsMaster={handleEnterInstitutionAsMaster}
+            onEnterClassroomAsMaster={handleEnterClassroomAsMaster}
           />
         )}
 
