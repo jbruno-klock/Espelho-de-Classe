@@ -74,7 +74,7 @@ export const RoomConfigModal: React.FC<RoomConfigModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#121216] rounded-3xl shadow-2xl border border-slate-200 dark:border-zinc-800 max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh] text-slate-900 dark:text-zinc-100 transition-colors">
+      <div className="bg-white dark:bg-[#121216] rounded-3xl shadow-2xl border border-slate-200 dark:border-zinc-800 max-w-4xl lg:max-w-5xl w-full overflow-hidden flex flex-col max-h-[92vh] text-slate-900 dark:text-zinc-100 transition-colors">
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#16161c]">
@@ -87,7 +87,7 @@ export const RoomConfigModal: React.FC<RoomConfigModalProps> = ({
                 Layout e Arquitetura da Sala ({classroom.name})
               </h3>
               <p className="text-xs text-slate-600 dark:text-zinc-400">
-                Ative ou desative carteiras para criar corredores e posicione portas e lousa
+                Ative ou desative carteiras para criar corredores e posicione portas e lousa (grade configurável até 15×15)
               </p>
             </div>
           </div>
@@ -106,7 +106,7 @@ export const RoomConfigModal: React.FC<RoomConfigModalProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-[#18181f] p-3.5 rounded-2xl border border-slate-200 dark:border-zinc-800">
             <div>
               <label className="block text-[11px] font-bold uppercase text-slate-700 dark:text-zinc-400 mb-1">
-                Fileiras (Linhas)
+                Fileiras (Linhas: 1 a 15)
               </label>
               <select
                 value={rows}
@@ -116,15 +116,17 @@ export const RoomConfigModal: React.FC<RoomConfigModalProps> = ({
                 }}
                 className="w-full px-2.5 py-1.5 bg-white dark:bg-[#121216] border border-slate-300 dark:border-zinc-700/60 rounded-lg text-xs font-semibold text-slate-900 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
               >
-                {[3, 4, 5, 6, 7, 8].map(r => (
-                  <option key={r} value={r} className="bg-white dark:bg-[#121216] text-slate-900 dark:text-zinc-200">{r} fileiras</option>
+                {Array.from({ length: 15 }, (_, i) => i + 1).map(r => (
+                  <option key={r} value={r} className="bg-white dark:bg-[#121216] text-slate-900 dark:text-zinc-200">
+                    {r} {r === 1 ? 'fileira (linha)' : 'fileiras (linhas)'}
+                  </option>
                 ))}
               </select>
             </div>
 
             <div>
               <label className="block text-[11px] font-bold uppercase text-slate-700 dark:text-zinc-400 mb-1">
-                Colunas (Carteiras)
+                Colunas (1 a 15)
               </label>
               <select
                 value={cols}
@@ -134,8 +136,10 @@ export const RoomConfigModal: React.FC<RoomConfigModalProps> = ({
                 }}
                 className="w-full px-2.5 py-1.5 bg-white dark:bg-[#121216] border border-slate-300 dark:border-zinc-700/60 rounded-lg text-xs font-semibold text-slate-900 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
               >
-                {[3, 4, 5, 6, 7, 8, 9, 10].map(c => (
-                  <option key={c} value={c} className="bg-white dark:bg-[#121216] text-slate-900 dark:text-zinc-200">{c} colunas</option>
+                {Array.from({ length: 15 }, (_, i) => i + 1).map(c => (
+                  <option key={c} value={c} className="bg-white dark:bg-[#121216] text-slate-900 dark:text-zinc-200">
+                    {c} {c === 1 ? 'coluna' : 'colunas'}
+                  </option>
                 ))}
               </select>
             </div>
@@ -252,9 +256,9 @@ export const RoomConfigModal: React.FC<RoomConfigModalProps> = ({
 
             {/* Desks Matrix */}
             <div
-              className="grid gap-2 p-2 bg-white dark:bg-[#121216]/80 rounded-xl border border-slate-200 dark:border-zinc-800 max-w-full overflow-x-auto shadow-xs"
+              className={`grid ${cols >= 11 ? 'gap-1' : 'gap-1.5 sm:gap-2'} p-2.5 bg-white dark:bg-[#121216]/80 rounded-2xl border border-slate-200 dark:border-zinc-800 max-w-full overflow-x-auto shadow-xs`}
               style={{
-                gridTemplateColumns: `repeat(${cols}, minmax(44px, 1fr))`,
+                gridTemplateColumns: `repeat(${cols}, minmax(${cols >= 11 ? '32px' : cols >= 8 ? '38px' : '44px'}, 1fr))`,
               }}
             >
               {Array.from({ length: rows }).map((_, r) =>
@@ -268,14 +272,20 @@ export const RoomConfigModal: React.FC<RoomConfigModalProps> = ({
                       type="button"
                       onClick={() => toggleDesk(r, c)}
                       title={`Clique para ${isActive ? 'desativar (virar corredor/vazio)' : 'ativar carteira'}`}
-                      className={`h-11 min-w-[44px] rounded-lg text-[10px] font-bold flex flex-col items-center justify-center transition-all cursor-pointer border ${
+                      className={`${
+                        cols >= 11
+                          ? 'h-9 min-w-[32px] text-[8px]'
+                          : cols >= 8
+                          ? 'h-10 min-w-[38px] text-[9px]'
+                          : 'h-11 min-w-[44px] text-[10px]'
+                      } rounded-lg font-bold flex flex-col items-center justify-center transition-all cursor-pointer border ${
                         isActive
                           ? 'bg-indigo-600 text-white border-indigo-400 hover:bg-indigo-700 shadow-xs'
                           : 'bg-slate-100 dark:bg-zinc-900/40 border-dashed border-slate-300 dark:border-zinc-800 hover:border-slate-400 dark:hover:border-zinc-600 text-slate-400 dark:text-zinc-600'
                       }`}
                     >
                       <span>F{r + 1}</span>
-                      <span className="text-[9px] font-normal opacity-80">C{c + 1}</span>
+                      <span className={`${cols >= 11 ? 'text-[7px]' : 'text-[9px]'} font-normal opacity-80`}>C{c + 1}</span>
                     </button>
                   );
                 })

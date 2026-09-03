@@ -105,7 +105,8 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
 
   // Density-based styling configuration based on total columns
   const isHighDensity = cols >= 6;
-  const isVeryHighDensity = cols >= 7;
+  const isVeryHighDensity = cols >= 8;
+  const isUltraDensity = cols >= 11;
 
   return (
     <div className="space-y-4 w-full">
@@ -164,18 +165,21 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
           )}
         </div>
 
-        {/* Desks Grid - 100% framed without horizontal scroll */}
-        <div className="w-full flex justify-center">
+        {/* Desks Grid - Framed with smooth scroll on high column count if screen is narrow */}
+        <div className="w-full flex justify-center overflow-x-auto pb-2">
           <div
             className={`grid p-2 sm:p-3 md:p-4 bg-slate-50 dark:bg-[#0a0a0d]/80 rounded-2xl border border-slate-200 dark:border-zinc-800/60 shadow-inner w-full ${
-              isVeryHighDensity 
+              isUltraDensity
+                ? 'gap-1 sm:gap-1.5'
+                : isVeryHighDensity 
                 ? 'gap-1.5 sm:gap-2' 
                 : isHighDensity 
                 ? 'gap-2 sm:gap-2.5' 
                 : 'gap-2.5 sm:gap-3.5'
             }`}
             style={{
-              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+              gridTemplateColumns: `repeat(${cols}, minmax(${cols >= 12 ? '48px' : cols >= 9 ? '56px' : '0'}, 1fr))`,
+              minWidth: cols >= 12 ? `${cols * 50}px` : cols >= 9 ? `${cols * 58}px` : '100%',
             }}
           >
             {Array.from({ length: rows }).map((_, r) =>
@@ -188,7 +192,9 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                   return (
                     <div
                       key={deskId}
-                      className="min-h-[72px] sm:min-h-[88px] rounded-xl border border-dashed border-slate-300 dark:border-zinc-800/50 bg-slate-100/60 dark:bg-zinc-900/20 flex items-center justify-center text-[9px] sm:text-[10px] font-bold text-slate-400 dark:text-zinc-500 select-none"
+                      className={`${
+                        isUltraDensity ? 'min-h-[64px] sm:min-h-[76px]' : 'min-h-[72px] sm:min-h-[88px]'
+                      } rounded-xl border border-dashed border-slate-300 dark:border-zinc-800/50 bg-slate-100/60 dark:bg-zinc-900/20 flex items-center justify-center text-[8px] sm:text-[10px] font-bold text-slate-400 dark:text-zinc-500 select-none`}
                     >
                       Corredor
                     </div>
@@ -235,9 +241,13 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                     onMouseLeave={() => setHoveredStudentId(null)}
                     draggable={!!student}
                     onDragStart={(e) => student && handleDragStartDesk(e, deskId, student.id)}
-                    className={`min-h-[76px] sm:min-h-[92px] md:min-h-[100px] rounded-xl sm:rounded-2xl ${
-                      isHighDensity ? 'p-1 sm:p-2' : 'p-1.5 sm:p-2.5'
-                    } transition-all duration-150 relative flex flex-col justify-between cursor-pointer border ${
+                    className={`${
+                      isUltraDensity
+                        ? 'min-h-[64px] sm:min-h-[76px] md:min-h-[84px] p-1 sm:p-1.5'
+                        : isHighDensity
+                        ? 'min-h-[76px] sm:min-h-[92px] md:min-h-[100px] p-1 sm:p-2'
+                        : 'min-h-[76px] sm:min-h-[92px] md:min-h-[100px] p-1.5 sm:p-2.5'
+                    } rounded-xl sm:rounded-2xl transition-all duration-150 relative flex flex-col justify-between cursor-pointer border ${
                       isSelected
                         ? 'ring-2 ring-indigo-500 border-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 shadow-lg scale-102 z-10'
                         : highlightClass
@@ -251,7 +261,9 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
 
                     {/* Desk Top Bar: Position Coordinate & Lock/Remove */}
                     <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
-                      <span className="font-extrabold text-slate-700 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800/80 px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded-md border border-slate-200 dark:border-zinc-700/40 text-[8px] sm:text-[9px]">
+                      <span className={`font-extrabold text-slate-700 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800/80 ${
+                        isUltraDensity ? 'px-0.5 py-0.2 text-[7px] sm:text-[8px]' : 'px-1 py-0.2 sm:px-1.5 sm:py-0.5 text-[8px] sm:text-[9px]'
+                      } rounded-md border border-slate-200 dark:border-zinc-700/40`}>
                         F{r + 1}•C{c + 1}
                       </span>
 
@@ -291,13 +303,17 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                       <div className="my-auto py-0.5">
                         <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
                           <div
-                            className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 rounded-md sm:rounded-lg flex items-center justify-center text-white font-bold text-[9px] sm:text-[10px] shrink-0 shadow-xs"
+                            className={`${
+                              isUltraDensity ? 'w-3.5 h-3.5 sm:w-4 sm:h-4 text-[8px]' : 'w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-[9px] sm:text-[10px]'
+                            } rounded-md sm:rounded-lg flex items-center justify-center text-white font-bold shrink-0 shadow-xs`}
                             style={{ backgroundColor: student.avatarColor || '#6366f1' }}
                           >
                             {student.rollNumber}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-[10px] sm:text-xs font-bold text-slate-900 dark:text-zinc-100 truncate leading-tight">
+                            <p className={`${
+                              isUltraDensity ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-xs'
+                            } font-bold text-slate-900 dark:text-zinc-100 truncate leading-tight`}>
                               {student.name.split(' ')[0]} {isHighDensity ? '' : (student.name.split(' ')[1] || '')}
                             </p>
                             {student.nickname && !isVeryHighDensity && (

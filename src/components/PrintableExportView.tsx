@@ -233,7 +233,7 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
 
           {/* 3. LAYOUT DAS MESAS: Minimalista Premium */}
           <div
-            className="grid gap-3"
+            className={`grid ${cols >= 12 ? 'gap-1' : cols >= 8 ? 'gap-1.5' : 'gap-2 sm:gap-3'}`}
             style={{
               gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
             }}
@@ -242,13 +242,15 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
               Array.from({ length: cols }).map((_, c) => {
                 const deskId = `r${r}_c${c}`;
                 const isActive = activeDesks[deskId] !== false;
+                const isCompact = cols >= 12 || rows >= 12;
+                const isMediumCompact = cols >= 8 || rows >= 8;
 
                 // CORREDORES: Oculta apenas as células de corredor, usando como espaçamento invisível
                 if (!isActive) {
                   return (
                     <div
                       key={deskId}
-                      className="h-20 invisible pointer-events-none"
+                      className={`${isCompact ? 'h-14' : isMediumCompact ? 'h-16' : 'h-20'} invisible pointer-events-none`}
                       aria-hidden="true"
                     />
                   );
@@ -262,9 +264,9 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                   return (
                     <div
                       key={deskId}
-                      className="h-20 rounded-xl p-2.5 border border-dashed border-slate-200 bg-slate-100/60 flex flex-col items-center justify-center text-center transition-all"
+                      className={`${isCompact ? 'h-14 p-1' : isMediumCompact ? 'h-16 p-1.5' : 'h-20 p-2.5'} rounded-xl border border-dashed border-slate-200 bg-slate-100/60 flex flex-col items-center justify-center text-center transition-all`}
                     >
-                      <span className="text-[11px] font-medium text-slate-400 tracking-wide">
+                      <span className={`${isCompact ? 'text-[9px]' : 'text-[11px]'} font-medium text-slate-400 tracking-wide`}>
                         Vazia
                       </span>
                     </div>
@@ -275,22 +277,22 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                 return (
                   <div
                     key={deskId}
-                    className="h-20 rounded-xl p-2.5 bg-white border border-slate-200 shadow-xs flex flex-col items-center justify-center text-center transition-all hover:border-slate-300"
+                    className={`${isCompact ? 'h-14 p-1' : isMediumCompact ? 'h-16 p-1.5' : 'h-20 p-2.5'} rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col items-center justify-center text-center transition-all hover:border-slate-300`}
                   >
                     {/* Número da chamada centralizado */}
-                    <span className="text-[10px] font-bold text-slate-600 bg-slate-100 rounded-full px-2 py-0.5 mb-1.5 inline-flex items-center justify-center leading-none">
+                    <span className={`${isCompact ? 'text-[8px] px-1.5 py-0.2 mb-0.5' : 'text-[10px] px-2 py-0.5 mb-1.5'} font-bold text-slate-600 bg-slate-100 rounded-full inline-flex items-center justify-center leading-none`}>
                       Nº {student.rollNumber}
                     </span>
 
                     {/* Nome do aluno centralizado */}
                     <div className="w-full px-0.5 overflow-hidden">
                       <p 
-                        className="text-[11.5px] font-extrabold text-slate-900 leading-snug line-clamp-2 text-center"
+                        className={`${isCompact ? 'text-[8.5px] leading-tight line-clamp-2' : isMediumCompact ? 'text-[10px] leading-tight line-clamp-2' : 'text-[11.5px] leading-snug line-clamp-2'} font-extrabold text-slate-900 text-center`}
                         style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
                       >
                         {student.name}
                       </p>
-                      {student.nickname && (
+                      {student.nickname && !isCompact && (
                         <p className="text-[9px] text-slate-500 italic truncate mt-0.5 text-center">
                           ({student.nickname})
                         </p>

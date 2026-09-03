@@ -403,9 +403,10 @@ function generateNativeVectorPDF(
 
   // --- 3. LAYOUT DAS MESAS: MINIMALISTA PREMIUM ---
   const gridAvailableHeight = pageHeight - curY - 20; // space for bottom wall & footer
-  const gap = 2.5;
+  const gap = cols >= 12 ? 1.2 : cols >= 8 ? 1.8 : 2.5;
   const deskWidth = (usableWidth - (gap * (cols - 1))) / cols;
   const deskHeight = Math.min(18, (gridAvailableHeight - (gap * (rows - 1))) / rows);
+  const isCompact = deskWidth < 22 || deskHeight < 11;
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -426,38 +427,41 @@ function generateNativeVectorPDF(
         // ALUNOS: Cartões brancos com cantos arredondados, sombra/borda sutil, SEM código de grade, número e nome centralizados
         pdf.setFillColor(255, 255, 255);
         pdf.setDrawColor(203, 213, 225); // slate-300
-        pdf.setLineWidth(0.25);
-        pdf.roundedRect(dX, dY, deskWidth, deskHeight, 1.2, 1.2, 'FD');
+        pdf.setLineWidth(0.22);
+        pdf.roundedRect(dX, dY, deskWidth, deskHeight, 1, 1, 'FD');
 
         // Roll number badge (Top Center)
-        const rollBadgeW = 10;
-        const rollBadgeH = 3.5;
+        const rollBadgeW = isCompact ? 7.5 : 10;
+        const rollBadgeH = isCompact ? 2.5 : 3.5;
         const rollBadgeX = dX + (deskWidth / 2) - (rollBadgeW / 2);
-        const rollBadgeY = dY + 1.5;
+        const rollBadgeY = dY + (isCompact ? 0.8 : 1.3);
 
         pdf.setFillColor(241, 245, 249); // slate-100
         pdf.setDrawColor(226, 232, 240);
         pdf.setLineWidth(0.15);
-        pdf.roundedRect(rollBadgeX, rollBadgeY, rollBadgeW, rollBadgeH, 0.8, 0.8, 'FD');
+        pdf.roundedRect(rollBadgeX, rollBadgeY, rollBadgeW, rollBadgeH, 0.6, 0.6, 'FD');
 
         pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(5.5);
+        pdf.setFontSize(isCompact ? 4.2 : 5.5);
         pdf.setTextColor(71, 85, 105); // slate-600
-        pdf.text(`N ${student.rollNumber}`, dX + (deskWidth / 2), rollBadgeY + 2.5, { align: 'center' });
+        pdf.text(`N ${student.rollNumber}`, dX + (deskWidth / 2), rollBadgeY + (isCompact ? 1.8 : 2.5), { align: 'center' });
 
         // Student Name (Prominently Center)
-        const maxTextWidth = deskWidth - 3;
-        const fontSize = deskWidth < 26 ? 5.5 : deskWidth < 34 ? 6.5 : 7.5;
+        const maxTextWidth = deskWidth - 2;
+        const fontSize = deskWidth < 18 ? 4.2 : deskWidth < 26 ? 5.2 : deskWidth < 34 ? 6.5 : 7.5;
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(fontSize);
         pdf.setTextColor(15, 23, 42); // slate-900
         
-        // Smart name wrapping
-        const displayLines = wrapStudentName(pdf, student.name, maxTextWidth, 2);
+        // Smart name wrapping: 1 line if desk is very short, else 2 lines
+        const maxLines = deskHeight < 10 ? 1 : 2;
+        const displayLines = wrapStudentName(pdf, student.name, maxTextWidth, maxLines);
 
-        const lineHeight = fontSize * 0.42;
+        const lineHeight = fontSize * 0.4;
         const totalTextHeight = (displayLines.length - 1) * lineHeight;
-        const startY = dY + (deskHeight / 2) + 1.5 - (totalTextHeight / 2);
+        const startY = isCompact 
+          ? dY + rollBadgeH + (isCompact ? 2.2 : 3) 
+          : dY + (deskHeight / 2) + 1.5 - (totalTextHeight / 2);
 
         displayLines.forEach((lineText: string, lineIndex: number) => {
           pdf.text(lineText, dX + (deskWidth / 2), startY + (lineIndex * lineHeight), { align: 'center' });
@@ -467,12 +471,12 @@ function generateNativeVectorPDF(
         pdf.setFillColor(248, 250, 252); // slate-50
         pdf.setDrawColor(226, 232, 240); // slate-200
         pdf.setLineWidth(0.2);
-        pdf.roundedRect(dX, dY, deskWidth, deskHeight, 1.2, 1.2, 'FD');
+        pdf.roundedRect(dX, dY, deskWidth, deskHeight, 1, 1, 'FD');
 
         pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(6);
+        pdf.setFontSize(isCompact ? 4.5 : 6);
         pdf.setTextColor(148, 163, 184); // slate-400
-        pdf.text('Vazia', dX + (deskWidth / 2), dY + (deskHeight / 2) + 1, { align: 'center' });
+        pdf.text('Vazia', dX + (deskWidth / 2), dY + (deskHeight / 2) + (isCompact ? 0.7 : 1), { align: 'center' });
       }
     }
   }

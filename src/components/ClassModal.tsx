@@ -207,30 +207,34 @@ export const ClassModal: React.FC<ClassModalProps> = ({
             <div className="grid grid-cols-2 gap-4 mb-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-zinc-400 mb-1">
-                  Fileiras (Linhas)
+                  Fileiras (Linhas: 1 a 15)
                 </label>
                 <select
                   value={rows}
                   onChange={(e) => setRows(Number(e.target.value))}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-[#18181f] border border-slate-300 dark:border-zinc-700/60 rounded-xl text-sm font-semibold text-slate-900 dark:text-zinc-100 focus:bg-white dark:focus:bg-[#15151b] focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-xs"
                 >
-                  {[3, 4, 5, 6, 7, 8].map(r => (
-                    <option key={r} value={r} className="bg-white dark:bg-[#18181f] text-slate-900 dark:text-zinc-100">{r} fileiras</option>
+                  {Array.from({ length: 15 }, (_, i) => i + 1).map(r => (
+                    <option key={r} value={r} className="bg-white dark:bg-[#18181f] text-slate-900 dark:text-zinc-100">
+                      {r} {r === 1 ? 'fileira (linha)' : 'fileiras (linhas)'}
+                    </option>
                   ))}
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-zinc-400 mb-1">
-                  Colunas (Carteiras por linha)
+                  Colunas (1 a 15)
                 </label>
                 <select
                   value={cols}
                   onChange={(e) => setCols(Number(e.target.value))}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-[#18181f] border border-slate-300 dark:border-zinc-700/60 rounded-xl text-sm font-semibold text-slate-900 dark:text-zinc-100 focus:bg-white dark:focus:bg-[#15151b] focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-xs"
                 >
-                  {[3, 4, 5, 6, 7, 8, 9, 10].map(c => (
-                    <option key={c} value={c} className="bg-white dark:bg-[#18181f] text-slate-900 dark:text-zinc-100">{c} colunas</option>
+                  {Array.from({ length: 15 }, (_, i) => i + 1).map(c => (
+                    <option key={c} value={c} className="bg-white dark:bg-[#18181f] text-slate-900 dark:text-zinc-100">
+                      {c} {c === 1 ? 'coluna' : 'colunas'}
+                    </option>
                   ))}
                 </select>
               </div>
