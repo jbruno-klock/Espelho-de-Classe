@@ -441,28 +441,70 @@
 
 /* Custom dark and light scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
   background: #121216;
 }
 ::-webkit-scrollbar-thumb {
-  background: #272730;
+  background: #3a3a46;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f4e;
+  background: #525264;
 }
 
 .light ::-webkit-scrollbar-track {
   background: #f1f5f9;
 }
 .light ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #94a3b8;
 }
 .light ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #64748b;
+}
+
+/* High-contrast explicit visible scrollbar for student lists and complex selectors */
+.visible-scrollbar {
+  overflow-y: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #10b981 #1a1a24 !important;
+}
+
+.light .visible-scrollbar,
+.visible-scrollbar.light {
+  scrollbar-color: #059669 #e2e8f0 !important;
+}
+
+.visible-scrollbar::-webkit-scrollbar {
+  width: 8px !important;
+  height: 8px !important;
+}
+
+.visible-scrollbar::-webkit-scrollbar-track {
+  background: #181822 !important;
+  border-radius: 9999px !important;
+  margin: 4px 0;
+}
+
+.light .visible-scrollbar::-webkit-scrollbar-track {
+  background: #e2e8f0 !important;
+}
+
+.visible-scrollbar::-webkit-scrollbar-thumb {
+  background: #10b981 !important;
+  border-radius: 9999px !important;
+  border: 1.5px solid #181822 !important;
+}
+
+.light .visible-scrollbar::-webkit-scrollbar-thumb {
+  background: #059669 !important;
+  border: 1.5px solid #e2e8f0 !important;
+}
+
+.visible-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #047857 !important;
 }
 
 /* Print optimizations */
@@ -553,6 +595,41 @@
 .light .matrix-cell-neutral:hover {
   background-color: #e2e8f0 !important;
   color: #0f172a !important;
+}
+
+/* Custom clean scrollbars for modals and panels with high visibility */
+.custom-modal-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #e2e8f0;
+}
+.dark .custom-modal-scroll {
+  scrollbar-color: #64748b #18181f;
+}
+.custom-modal-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-modal-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 9999px;
+}
+.dark .custom-modal-scroll::-webkit-scrollbar-track {
+  background: #18181f;
+}
+.custom-modal-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 9999px;
+  border: 2px solid #f1f5f9;
+}
+.dark .custom-modal-scroll::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border: 2px solid #18181f;
+}
+.custom-modal-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+.dark .custom-modal-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 

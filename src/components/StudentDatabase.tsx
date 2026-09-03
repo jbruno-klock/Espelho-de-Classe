@@ -15,6 +15,7 @@ import {
   Users,
   Filter,
   UserCheck,
+  UserX,
   X
 } from 'lucide-react';
 import { Student, Classroom } from '../types';
@@ -68,7 +69,7 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-600 dark:text-zinc-400 mt-1">
-            Cadastre os perfis individuais, necessidades de visão/audição/foco, e restrições de afinidade
+            Cadastre os perfis individuais, necessidades de visão/audição/foco, e relações de proximidade (quem pode e não pode ficar perto)
           </p>
         </div>
 
@@ -172,8 +173,8 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
                   <th className="py-3.5 px-4">Aluno(a)</th>
                   <th className="py-3.5 px-4">Comportamento</th>
                   <th className="py-3.5 px-4">Necessidades & Inclusão</th>
-                  <th className="py-3.5 px-4">Afinidades</th>
-                  <th className="py-3.5 px-4">Desafinidades</th>
+                  <th className="py-3.5 px-4">Pode Ficar Perto</th>
+                  <th className="py-3.5 px-4">NÃO Pode Perto</th>
                   <th className="py-3.5 px-4 text-right">Ações</th>
                 </tr>
               </thead>
@@ -260,28 +261,28 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
                         )}
                       </td>
 
-                      {/* Affinities */}
+                      {/* Proximity: Can be near */}
                       <td className="py-3.5 px-4">
                         {affinityNames.length === 0 ? (
                           <span className="text-slate-400 dark:text-zinc-500 text-xs">-</span>
                         ) : (
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/30">
-                              <Heart className="w-3 h-3 fill-emerald-500 text-emerald-600 dark:text-emerald-400" />
+                              <UserCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                               {affinityNames.join(', ')}
                             </span>
                           </div>
                         )}
                       </td>
 
-                      {/* Anti-Affinities */}
+                      {/* Proximity: Cannot be near */}
                       <td className="py-3.5 px-4">
                         {antiAffinityNames.length === 0 ? (
                           <span className="text-slate-400 dark:text-zinc-500 text-xs">-</span>
                         ) : (
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-100 text-rose-900 border border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/30">
-                              <AlertTriangle className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                              <UserX className="w-3 h-3 text-rose-600 dark:text-rose-400" />
                               {antiAffinityNames.join(', ')}
                             </span>
                           </div>

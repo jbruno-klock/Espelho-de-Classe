@@ -6,16 +6,21 @@ import {
   Settings,
   CheckCircle2,
   AlertCircle,
-  Loader2
+  Loader2,
+  Hash,
+  Printer,
+  Bookmark
 } from 'lucide-react';
 import { Classroom, Institution, Student } from '../types';
 import { exportToPdf } from '../utils/exportUtils';
+import { ensureClassroomPlans } from '../utils/seatingPlanUtils';
 
 interface PrintableExportViewProps {
   classroom: Classroom;
   institution?: Institution;
   onBackToEditor: () => void;
   onOpenInstitutionSettings?: () => void;
+  onSwitchPlan?: (planId: string) => void;
 }
 
 export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
@@ -23,11 +28,15 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
   institution,
   onBackToEditor,
   onOpenInstitutionSettings,
+  onSwitchPlan,
 }) => {
   const { rows, cols, teacherDeskPosition, activeDesks } = classroom.roomConfig;
   const seatingMap = classroom.seatingMap || {};
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [exportFeedback, setExportFeedback] = useState<string | null>(null);
+  const [showRollNumbers, setShowRollNumbers] = useState<boolean>(true);
+
+  const { plans, activePlan } = ensureClassroomPlans(classroom);
 
   const studentMap = new Map<string, Student>();
   classroom.students.forEach(s => studentMap.set(s.id, s));
@@ -36,8 +45,10 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
     setIsExportingPDF(true);
     setExportFeedback(null);
     try {
-      const fileName = `espelho_${classroom.name.replace(/[\s/]+/g, '_')}_${classroom.academicYear}`;
-      await exportToPdf('printable-document-content', fileName, classroom, institution);
+      const sanitizedClassName = classroom.name.replace(/[\s/]+/g, '_');
+      const sanitizedPlanName = (activePlan?.name || 'Oficial').replace(/[\s/]+/g, '_');
+      const fileName = `espelho_${sanitizedClassName}_${sanitizedPlanName}_${classroom.academicYear}`;
+      await exportToPdf('printable-document-content', fileName, classroom, institution, { showRollNumber: showRollNumbers });
       setExportFeedback('PDF gerado e baixado com sucesso!');
       setTimeout(() => setExportFeedback(null), 4000);
     } catch (err: any) {
@@ -61,14 +72,18 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
           <button
             onClick={onBackToEditor}
             className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 transition-colors cursor-pointer border border-slate-200 dark:border-zinc-700"
+            title="Voltar ao editor de espelho"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold text-slate-900 dark:text-zinc-100 font-display">
-                Espelho de Classe Oficial
+                Impressão & PDF
               </h2>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/40">
+                {activePlan.name}
+              </span>
               {institution && (
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 rounded-full border border-emerald-300 dark:border-emerald-500/20">
                   {institution.code}
@@ -76,12 +91,55 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
               )}
             </div>
             <p className="text-xs text-slate-600 dark:text-zinc-400">
-              Layout minimalista premium padronizado para impressão e exportação em PDF A4
+              Layout padronizado para impressão e exportação em folha A4
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Seletor de Espelho para Impressão Rápida */}
+          {plans.length > 1 && onSwitchPlan && (
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl border border-slate-300 dark:border-zinc-700/60 shadow-xs">
+              <Bookmark className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 ml-1.5" />
+              <select
+                value={activePlan.id}
+                onChange={(e) => onSwitchPlan(e.target.value)}
+                className="bg-transparent text-slate-800 dark:text-zinc-200 text-xs font-bold py-1.5 px-2 rounded-lg cursor-pointer focus:outline-none"
+                title="Alternar entre espelhos salvos desta turma para imprimir"
+              >
+                {plans.map(p => (
+                  <option key={p.id} value={p.id} className="bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100">
+                    {p.name} {p.isDefault ? '(Oficial)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Botão para Ativar/Desativar Número da Chamada */}
+          <button
+            type="button"
+            id="toggle-roll-numbers-btn"
+            onClick={() => setShowRollNumbers(prev => !prev)}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-xs ${
+              showRollNumbers 
+                ? 'bg-emerald-50 hover:bg-emerald-100/80 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700/60' 
+                : 'bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-400 border-slate-300 dark:border-zinc-700/60'
+            }`}
+            title={showRollNumbers ? "Clique para desabilitar o número da chamada do PDF e da impressão" : "Clique para habilitar o número da chamada no PDF e na impressão"}
+            aria-pressed={showRollNumbers}
+          >
+            <Hash className={`w-4 h-4 ${showRollNumbers ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} />
+            <span>Nº da Chamada:</span>
+            <span className={`px-2 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wider ${
+              showRollNumbers 
+                ? 'bg-emerald-200/80 dark:bg-emerald-800/70 text-emerald-950 dark:text-emerald-100' 
+                : 'bg-slate-200 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400 line-through'
+            }`}>
+              {showRollNumbers ? 'Ativado' : 'Desativado'}
+            </span>
+          </button>
+
           {onOpenInstitutionSettings && (
             <button
               onClick={onOpenInstitutionSettings}
@@ -89,9 +147,19 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
               className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-300 dark:border-zinc-700/60 shadow-xs"
             >
               <Settings className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              {schoolLogo ? 'Alterar Logo' : 'Inserir Logo da Escola'}
+              {schoolLogo ? 'Alterar Logo' : 'Inserir Logo'}
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-300 dark:border-zinc-700/60 shadow-xs"
+            title="Imprimir diretamente pelo navegador"
+          >
+            <Printer className="w-4 h-4 text-slate-600 dark:text-zinc-400" />
+            <span className="hidden sm:inline">Imprimir</span>
+          </button>
 
           <button
             onClick={handleDownloadPDF}
@@ -143,8 +211,14 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                 {displaySchoolName}
               </h1>
               {/* Subtítulo Destaque */}
-              <h2 className="text-xs sm:text-sm font-bold uppercase tracking-widest text-slate-600 font-sans">
-                ESPELHO DE CLASSE - MAPA OFICIAL DE SALA DE AULA
+              <h2 className="text-xs sm:text-sm font-bold uppercase tracking-widest text-slate-600 font-sans flex items-center gap-1.5 flex-wrap">
+                <span>ESPELHO DE CLASSE •</span>
+                <span className="text-slate-900 font-black">{activePlan.name.toUpperCase()}</span>
+                {activePlan.isDefault && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-300 ml-1">
+                    OFICIAL
+                  </span>
+                )}
               </h2>
             </div>
 
@@ -172,10 +246,14 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
           </div>
 
           {/* Metadados Agrupados Estritamente Abaixo da Logo com Respiro Visual Adequado */}
-          <div className="pt-3 border-t border-slate-200/90 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4 text-xs text-slate-700">
+          <div className="pt-3 border-t border-slate-200/90 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5 text-xs text-slate-700">
             <div className="flex flex-col bg-slate-50/50 p-2 rounded-xl border border-slate-100">
               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Turma</span>
               <span className="font-bold text-slate-900 text-sm truncate" title={classroom.name}>{classroom.name}</span>
+            </div>
+            <div className="flex flex-col bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Versão / Espelho</span>
+              <span className="font-bold text-emerald-800 text-sm truncate" title={activePlan.name}>{activePlan.name}</span>
             </div>
             <div className="flex flex-col bg-slate-50/50 p-2 rounded-xl border border-slate-100">
               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Nível</span>
@@ -279,15 +357,23 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                     key={deskId}
                     className={`${isCompact ? 'h-14 p-1' : isMediumCompact ? 'h-16 p-1.5' : 'h-20 p-2.5'} rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col items-center justify-center text-center transition-all hover:border-slate-300`}
                   >
-                    {/* Número da chamada centralizado */}
-                    <span className={`${isCompact ? 'text-[8px] px-1.5 py-0.2 mb-0.5' : 'text-[10px] px-2 py-0.5 mb-1.5'} font-bold text-slate-600 bg-slate-100 rounded-full inline-flex items-center justify-center leading-none`}>
-                      Nº {student.rollNumber}
-                    </span>
+                    {/* Número da chamada centralizado (condicional) */}
+                    {showRollNumbers && (
+                      <span className={`${isCompact ? 'text-[8px] px-1.5 py-0.2 mb-0.5' : 'text-[10px] px-2 py-0.5 mb-1.5'} font-bold text-slate-600 bg-slate-100 rounded-full inline-flex items-center justify-center leading-none shrink-0`}>
+                        Nº {student.rollNumber}
+                      </span>
+                    )}
 
                     {/* Nome do aluno centralizado */}
-                    <div className="w-full px-0.5 overflow-hidden">
+                    <div className="w-full px-0.5 overflow-hidden flex flex-col items-center justify-center">
                       <p 
-                        className={`${isCompact ? 'text-[8.5px] leading-tight line-clamp-2' : isMediumCompact ? 'text-[10px] leading-tight line-clamp-2' : 'text-[11.5px] leading-snug line-clamp-2'} font-extrabold text-slate-900 text-center`}
+                        className={`${
+                          isCompact 
+                            ? (showRollNumbers ? 'text-[8.5px]' : 'text-[9.5px]') 
+                            : isMediumCompact 
+                            ? (showRollNumbers ? 'text-[10px]' : 'text-[11.5px]') 
+                            : (showRollNumbers ? 'text-[11.5px]' : 'text-[13px]')
+                        } font-extrabold text-slate-900 text-center leading-tight line-clamp-2`}
                         style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
                       >
                         {student.name}

@@ -100,7 +100,7 @@ export const RoomConfigModal: React.FC<RoomConfigModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-5 overflow-y-auto flex-1 text-slate-800 dark:text-zinc-300">
+        <div className="p-6 space-y-5 overflow-y-scroll flex-1 custom-modal-scroll pr-4 text-slate-800 dark:text-zinc-300">
           
           {/* Controls Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-[#18181f] p-3.5 rounded-2xl border border-slate-200 dark:border-zinc-800">

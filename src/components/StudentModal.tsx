@@ -15,7 +15,9 @@ import {
   Trash2,
   Tag,
   Sliders,
-  ChevronDown
+  ChevronDown,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 import { 
   Student, 
@@ -518,16 +520,16 @@ export const StudentModal: React.FC<StudentModalProps> = ({
           <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-zinc-800/80">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-400 flex items-center gap-1.5">
-                <Heart className="w-4 h-4 text-emerald-600 dark:text-emerald-400 fill-emerald-500/20" />
-                3. Módulo Avançado de Afinidades (+ Sinergia Pedagógica)
+                <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                3. Proximidade Permitida / Recomendada (Quem PODE ficar perto)
               </h4>
               <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-800">
-                {affinityDetails.length} configurada(s)
+                {affinityDetails.length} permitido(s)
               </span>
             </div>
 
             <p className="text-xs text-slate-600 dark:text-zinc-400">
-              Defina com quais colegas este aluno deve sentar próximo, especificando a intensidade (+3 Alta, +2 Média, +1 Baixa) e a categoria pedagógica.
+              Aponte quais colegas podem ou devem sentar perto deste aluno, indicando a prioridade (+3 Alta, +2 Média, +1 Baixa) e a finalidade pedagógica.
             </p>
 
             {/* Existing Affinities List */}
@@ -571,7 +573,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                         type="button"
                         onClick={() => handleRemoveAffinity(rel.targetStudentId)}
                         className="p-1.5 text-slate-500 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
-                        title="Remover afinidade"
+                        title="Remover proximidade permitida"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -585,7 +587,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
             <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#151a20] border border-slate-200 dark:border-zinc-800/80 space-y-3">
               <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
                 <Plus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                Vincular Nova Afinidade
+                Vincular Colega Próximo (Pode Ficar Perto)
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
@@ -654,7 +656,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                   onClick={handleAddAffinity}
                   className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:pointer-events-none text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                 >
-                  <Plus className="w-3.5 h-3.5" /> Adicionar Afinidade
+                  <Plus className="w-3.5 h-3.5" /> Permitir Proximidade
                 </button>
               </div>
             </div>
@@ -664,16 +666,16 @@ export const StudentModal: React.FC<StudentModalProps> = ({
           <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-zinc-800/80">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold uppercase tracking-wider text-rose-800 dark:text-rose-400 flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                4. Módulo Avançado de Desafinidades (- Isolamento de Conflito/Conversa)
+                <UserX className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                4. Restrições de Proximidade (Quem NÃO PODE ficar perto)
               </h4>
               <span className="text-[11px] font-bold text-rose-800 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-full border border-rose-300 dark:border-rose-800">
-                {antiAffinityDetails.length} configurada(s)
+                {antiAffinityDetails.length} restrição(ões)
               </span>
             </div>
 
             <p className="text-xs text-slate-600 dark:text-zinc-400">
-              Configure com quem este aluno NÃO deve sentar perto, com níveis de penalidade (-3 Crítica, -2 Moderada, -1 Leve) e motivação pedagógica.
+              Aponte quais colegas NÃO podem sentar perto deste aluno, definindo o nível de distanciamento (-3 Crítico/Separação Absoluta, -2 Moderado, -1 Leve) e a justificativa pedagógica.
             </p>
 
             {/* Existing Anti-Affinities List */}
@@ -717,7 +719,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                         type="button"
                         onClick={() => handleRemoveAntiAffinity(rel.targetStudentId)}
                         className="p-1.5 text-slate-500 hover:text-rose-600 dark:text-zinc-400 dark:hover:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
-                        title="Remover desafinidade"
+                        title="Remover restrição de distanciamento"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -731,7 +733,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
             <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#151a20] border border-slate-200 dark:border-zinc-800/80 space-y-3">
               <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
                 <Plus className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                Vincular Nova Desafinidade
+                Vincular Restrição de Distanciamento (NÃO Pode Ficar Perto)
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
@@ -800,7 +802,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                   onClick={handleAddAntiAffinity}
                   className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:pointer-events-none text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                 >
-                  <Plus className="w-3.5 h-3.5" /> Adicionar Desafinidade
+                  <Plus className="w-3.5 h-3.5" /> Adicionar Restrição
                 </button>
               </div>
             </div>

@@ -9,30 +9,41 @@ export type SpecialNeedType =
 export type BehaviorLevel = 'calm' | 'moderate' | 'talkative';
 export type Gender = 'M' | 'F' | 'other';
 
-export type AffinityLevel = 'high' | 'medium' | 'low'; // Alta (+3), Média (+2), Baixa (+1)
-export type AntiAffinityLevel = 'critical' | 'moderate' | 'mild'; // Crítica (-3), Moderada (-2), Leve (-1)
+// Proximity Model: Who CAN be near (allowed/recommended) vs Who CANNOT be near (restricted/separated)
+export type ProximityRuleType = 'can_be_near' | 'cannot_be_near' | 'neutral';
+
+// Can be near priority: High (+3), Medium (+2), Low (+1)
+export type CanBeNearLevel = 'high' | 'medium' | 'low';
+// Cannot be near severity: Critical (-3), Moderate (-2), Mild (-1)
+export type CannotBeNearLevel = 'critical' | 'moderate' | 'mild';
+
+// Backward compatible aliases
+export type AffinityLevel = CanBeNearLevel;
+export type AntiAffinityLevel = CannotBeNearLevel;
 
 export interface StudentRelation {
   targetStudentId: string;
-  level: AffinityLevel | AntiAffinityLevel;
+  level: CanBeNearLevel | CannotBeNearLevel;
   category?: string; // Ex: 'Apoio Pedagógico', 'Conversa Excessiva', 'Atrito Pessoal', etc.
   notes?: string;
 }
 
+// Categories for "Quem PODE ficar perto"
 export const DEFAULT_AFFINITY_CATEGORIES = [
-  'Amizade Produtiva / Estudos',
-  'Dupla de Apoio Mútuo',
-  'Monitoria / Nível Complementar',
-  'Grupo de Pesquisa / Laboratório',
-  'Afinidade Geral',
+  'Apoio Pedagógico & Monitoria',
+  'Trabalho em Dupla / Estudo',
+  'Sinergia de Foco / Produtividade',
+  'Inclusão & Acolhimento',
+  'Proximidade Recomendada Geral',
 ];
 
+// Categories for "Quem NÃO PODE ficar perto"
 export const DEFAULT_ANTI_AFFINITY_CATEGORIES = [
   'Conversa Excessiva / Dispersão',
-  'Conflito / Histórico de Atrito',
-  'Incompatibilidade de Ritmo',
-  'Desatenção Coletiva',
-  'Desafinidade Geral',
+  'Atrito / Conflito Comportamental',
+  'Distração Mútua',
+  'Histórico de Indisciplina em Grupo',
+  'Distanciamento Geral',
 ];
 
 export interface Student {
@@ -105,6 +116,21 @@ export interface AppUser {
   lastLoginAt?: number;
 }
 
+export type SeatingPlanCategory = 'official' | 'exam' | 'test' | 'group' | 'custom';
+
+export interface SavedSeatingPlan {
+  id: string;
+  name: string; // Ex: "Espelho Oficial", "Dias de Prova", "Teste Diagnóstico"
+  category?: SeatingPlanCategory;
+  description?: string;
+  seatingMap: Record<string, string | null>;
+  lockedDesks?: Record<string, boolean>;
+  roomConfig?: RoomConfig;
+  createdAt: number;
+  updatedAt: number;
+  isDefault?: boolean;
+}
+
 export interface Classroom {
   id: string;
   institutionId?: string; // ID da Instituição proprietária da turma (Isolamento Multi-tenant)
@@ -118,6 +144,8 @@ export interface Classroom {
   students: Student[];
   seatingMap: Record<string, string | null>; // deskId ('r0_c0') -> studentId or null
   lockedDesks: Record<string, boolean>; // deskId -> true se o professor travou a posição manualmente
+  savedPlans?: SavedSeatingPlan[]; // Múltiplos espelhos salvos (Oficial, Dias de Prova, Teste, etc.)
+  activePlanId?: string; // ID do espelho atualmente ativo
   customAffinityCategories?: string[]; // Categorias personalizadas de afinidade
   customAntiAffinityCategories?: string[]; // Categorias personalizadas de desafinidade
   createdAt: number;

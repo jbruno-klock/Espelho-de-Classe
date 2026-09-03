@@ -47,6 +47,8 @@
         "students": { "type": "array" },
         "layoutConfig": { "type": "object" },
         "seatingMap": { "type": "object" },
+        "savedPlans": { "type": "array" },
+        "activePlanId": { "type": "string" },
         "createdAt": { "type": "number" },
         "updatedAt": { "type": "number" }
       },

@@ -81,11 +81,11 @@ export const ClassModal: React.FC<ClassModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#121216] rounded-3xl shadow-2xl border border-slate-200 dark:border-zinc-800 max-w-lg w-full overflow-hidden text-slate-900 dark:text-zinc-100 transition-colors">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-[#121216] rounded-3xl shadow-2xl border border-slate-200 dark:border-zinc-800 max-w-lg w-full max-h-[88vh] flex flex-col overflow-hidden text-slate-900 dark:text-zinc-100 transition-colors">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#16161c]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#16161c] shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/20 flex items-center justify-center shadow-xs">
               <School className="w-5 h-5" />
@@ -105,8 +105,9 @@ export const ClassModal: React.FC<ClassModalProps> = ({
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto text-slate-800 dark:text-zinc-200">
+        {/* Form with guaranteed scrollbar */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="p-6 space-y-4 overflow-y-scroll flex-1 overscroll-contain custom-modal-scroll text-slate-800 dark:text-zinc-200 pr-4">
           
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-400 mb-1.5">
@@ -303,9 +304,10 @@ export const ClassModal: React.FC<ClassModalProps> = ({
               💡 Capacidade máxima calculada: <strong className="text-slate-900 dark:text-zinc-200">{rows * cols} carteiras</strong>. Você poderá desativar carteiras individuais ou corredores a qualquer momento no editor.
             </p>
           </div>
+          </div>
 
-          {/* Footer Actions */}
-          <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-200 dark:border-zinc-800">
+          {/* Footer Actions (fixo na base da janela) */}
+          <div className="flex items-center justify-between gap-3 p-4 sm:p-5 border-t border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-[#16161c] shrink-0">
             {initialClassroom && onDeleteClassroom ? (
               <button
                 type="button"

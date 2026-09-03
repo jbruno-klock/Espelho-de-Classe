@@ -394,7 +394,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <HeartHandshake className="w-4 h-4" />
-                Afinidades
+                Proximidade
               </button>
               <button
                 onClick={() => setActiveTab('print')}
@@ -511,7 +511,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <HeartHandshake className="w-3.5 h-3.5" />
-              Afinidades
+              Proximidade
             </button>
             <button
               onClick={() => setActiveTab('print')}

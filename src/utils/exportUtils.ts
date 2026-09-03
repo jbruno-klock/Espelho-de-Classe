@@ -82,6 +82,10 @@ function safeLatinText(text: string): string {
     .replace(/[\u00F1]/g, 'n');
 }
 
+export interface PdfExportOptions {
+  showRollNumber?: boolean;
+}
+
 /**
  * Generates and downloads a clean, standardized A4 Landscape PDF of the classroom seating map.
  * Uses html2canvas capture with an automatic high-fidelity native vector fallback in jsPDF.
@@ -90,7 +94,8 @@ export async function exportToPdf(
   elementId: string, 
   fileName: string, 
   classroom?: Classroom, 
-  institution?: Institution
+  institution?: Institution,
+  options?: PdfExportOptions
 ): Promise<void> {
   const cleanName = (fileName || 'espelho_de_classe')
     .replace(/[\\/:*?"<>|\s]+/g, '_')
@@ -197,7 +202,7 @@ export async function exportToPdf(
 
   // If html2canvas was not available or failed, generate native vector layout with logo
   if (!canvasSuccess && classroom) {
-    generateNativeVectorPDF(pdf, classroom, institution, logoBase64);
+    generateNativeVectorPDF(pdf, classroom, institution, logoBase64, options);
   }
 
   // Trigger download with multi-browser reliability
@@ -278,8 +283,10 @@ function generateNativeVectorPDF(
   pdf: jsPDF, 
   classroom: Classroom, 
   institution?: Institution,
-  preloadedLogo?: string | null
+  preloadedLogo?: string | null,
+  options?: PdfExportOptions
 ): void {
+  const showRollNumber = options?.showRollNumber !== false;
   const pageWidth = 297;
   const pageHeight = 210;
   const marginX = 12;
@@ -431,24 +438,29 @@ function generateNativeVectorPDF(
         pdf.roundedRect(dX, dY, deskWidth, deskHeight, 1, 1, 'FD');
 
         // Roll number badge (Top Center)
-        const rollBadgeW = isCompact ? 7.5 : 10;
-        const rollBadgeH = isCompact ? 2.5 : 3.5;
-        const rollBadgeX = dX + (deskWidth / 2) - (rollBadgeW / 2);
-        const rollBadgeY = dY + (isCompact ? 0.8 : 1.3);
+        let rollBadgeH = 0;
+        if (showRollNumber) {
+          const rollBadgeW = isCompact ? 7.5 : 10;
+          rollBadgeH = isCompact ? 2.5 : 3.5;
+          const rollBadgeX = dX + (deskWidth / 2) - (rollBadgeW / 2);
+          const rollBadgeY = dY + (isCompact ? 0.8 : 1.3);
 
-        pdf.setFillColor(241, 245, 249); // slate-100
-        pdf.setDrawColor(226, 232, 240);
-        pdf.setLineWidth(0.15);
-        pdf.roundedRect(rollBadgeX, rollBadgeY, rollBadgeW, rollBadgeH, 0.6, 0.6, 'FD');
+          pdf.setFillColor(241, 245, 249); // slate-100
+          pdf.setDrawColor(226, 232, 240);
+          pdf.setLineWidth(0.15);
+          pdf.roundedRect(rollBadgeX, rollBadgeY, rollBadgeW, rollBadgeH, 0.6, 0.6, 'FD');
 
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(isCompact ? 4.2 : 5.5);
-        pdf.setTextColor(71, 85, 105); // slate-600
-        pdf.text(`N ${student.rollNumber}`, dX + (deskWidth / 2), rollBadgeY + (isCompact ? 1.8 : 2.5), { align: 'center' });
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(isCompact ? 4.2 : 5.5);
+          pdf.setTextColor(71, 85, 105); // slate-600
+          pdf.text(`N ${student.rollNumber}`, dX + (deskWidth / 2), rollBadgeY + (isCompact ? 1.8 : 2.5), { align: 'center' });
+        }
 
         // Student Name (Prominently Center)
         const maxTextWidth = deskWidth - 2;
-        const fontSize = deskWidth < 18 ? 4.2 : deskWidth < 26 ? 5.2 : deskWidth < 34 ? 6.5 : 7.5;
+        const fontSize = showRollNumber 
+          ? (deskWidth < 18 ? 4.2 : deskWidth < 26 ? 5.2 : deskWidth < 34 ? 6.5 : 7.5)
+          : (deskWidth < 18 ? 4.8 : deskWidth < 26 ? 5.8 : deskWidth < 34 ? 7.2 : 8.2);
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(fontSize);
         pdf.setTextColor(15, 23, 42); // slate-900
@@ -459,9 +471,11 @@ function generateNativeVectorPDF(
 
         const lineHeight = fontSize * 0.4;
         const totalTextHeight = (displayLines.length - 1) * lineHeight;
-        const startY = isCompact 
-          ? dY + rollBadgeH + (isCompact ? 2.2 : 3) 
-          : dY + (deskHeight / 2) + 1.5 - (totalTextHeight / 2);
+        const startY = showRollNumber
+          ? (isCompact 
+              ? dY + rollBadgeH + (isCompact ? 2.2 : 3) 
+              : dY + (deskHeight / 2) + 1.5 - (totalTextHeight / 2))
+          : dY + (deskHeight / 2) + 0.8 - (totalTextHeight / 2);
 
         displayLines.forEach((lineText: string, lineIndex: number) => {
           pdf.text(lineText, dX + (deskWidth / 2), startY + (lineIndex * lineHeight), { align: 'center' });

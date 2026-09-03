@@ -1,4 +1,4 @@
-import { Classroom, Student, GenerationOptions, GenerationReport, ConflictDiagnostic } from '../types';
+import { Classroom, Student, GenerationOptions, GenerationReport, ConflictDiagnostic, CanBeNearLevel, CannotBeNearLevel } from '../types';
 
 export interface DeskPosition {
   id: string;
@@ -29,17 +29,56 @@ export function calculateDistance(d1: DeskPosition, d2: DeskPosition): number {
   return Math.sqrt(dr * dr + dc * dc);
 }
 
-// Chebyshev distance (grid neighborhood distance)
+// Chebyshev distance (grid neighborhood perimeter distance: 1 = adjacent/diagonal)
 export function calculateGridChebyshev(d1: DeskPosition, d2: DeskPosition): number {
   return Math.max(Math.abs(d1.row - d2.row), Math.abs(d1.col - d2.col));
 }
 
-// Calculate individual placement fitness
+// Manhattan distance (grid steps)
+export function calculateManhattan(d1: DeskPosition, d2: DeskPosition): number {
+  return Math.abs(d1.row - d2.row) + Math.abs(d1.col - d2.col);
+}
+
+// Parse affinity priority score and multipliers
+export function parseAffinityScore(level: any): { level: CanBeNearLevel; priorityPoints: number; multiplier: number; label: string } {
+  if (level === 'high' || level === 3 || level === '3' || level === '+3') {
+    return { level: 'high', priorityPoints: 3, multiplier: 2.2, label: 'Alta (+3)' };
+  }
+  if (level === 'low' || level === 1 || level === '1' || level === '+1') {
+    return { level: 'low', priorityPoints: 1, multiplier: 0.85, label: 'Baixa (+1)' };
+  }
+  return { level: 'medium', priorityPoints: 2, multiplier: 1.45, label: 'Média (+2)' };
+}
+
+// Parse anti-affinity severity score and multipliers
+export function parseAntiAffinityScore(level: any): { level: CannotBeNearLevel; severityPoints: number; multiplier: number; label: string } {
+  if (level === 'critical' || level === -3 || level === 3 || level === '-3' || level === 'critical') {
+    return { level: 'critical', severityPoints: 3, multiplier: 2.5, label: 'Crítica (-3 / Separação Obrigatória)' };
+  }
+  if (level === 'mild' || level === -1 || level === 1 || level === '-1') {
+    return { level: 'mild', severityPoints: 1, multiplier: 0.8, label: 'Leve (-1 / Afastamento Recomendado)' };
+  }
+  return { level: 'moderate', severityPoints: 2, multiplier: 1.5, label: 'Moderada (-2 / Evitar Vizinhança)' };
+}
+
+export interface SeatingEvaluationResult {
+  score: number;
+  rawFitness: number;
+  conflicts: ConflictDiagnostic[];
+  affinitiesMet: number;
+  totalAffinities: number;
+  specialNeedsMet: number;
+  totalSpecialNeeds: number;
+  talkativeIsolated: number;
+  totalTalkative: number;
+}
+
+// Calculate individual placement fitness with continuous gradient and point weighting
 export function evaluateSeatingScore(
   seating: Record<string, string | null>,
   classroom: Classroom,
   options: GenerationOptions
-): { score: number; conflicts: ConflictDiagnostic[]; affinitiesMet: number; totalAffinities: number; specialNeedsMet: number; totalSpecialNeeds: number; talkativeIsolated: number; totalTalkative: number } {
+): SeatingEvaluationResult {
   const deskMap = new Map<string, DeskPosition>();
   const activeDesks = getActiveDesks(classroom);
   activeDesks.forEach(d => deskMap.set(d.id, d));
@@ -67,7 +106,13 @@ export function evaluateSeatingScore(
 
   const countedPairs = new Set<string>();
 
-  // 1. Evaluate Student-to-Student interactions (Anti-affinities, Affinities, Talkative collisions)
+  // Multiplier weights from user options
+  const affWeight = (options.affinityWeight || 7) / 5;
+  const antiWeight = (options.antiAffinityWeight || 9) / 5;
+  const snWeight = (options.specialNeedsWeight || 10) / 5;
+  const talkWeight = (options.separateTalkativeWeight || 8) / 5;
+
+  // 1. Evaluate Individual Student constraints (Special Needs, Front/Back, etc.)
   const students = classroom.students;
   for (let i = 0; i < students.length; i++) {
     const s1 = students[i];
@@ -92,13 +137,13 @@ export function evaluateSeatingScore(
     if (d1) {
       if (hasFrontNeed) {
         if (d1.row === 0) {
-          bonusPoints += 80 * (options.specialNeedsWeight / 5);
+          bonusPoints += 140 * snWeight;
           specialNeedsMet++;
         } else if (d1.row === 1) {
-          bonusPoints += 30 * (options.specialNeedsWeight / 5);
+          bonusPoints += 60 * snWeight;
           specialNeedsMet++;
         } else {
-          const rowPenalty = (d1.row - 1) * 120 * (options.specialNeedsWeight / 5);
+          const rowPenalty = (d1.row - 1) * 220 * snWeight;
           penaltyPoints += rowPenalty;
           conflicts.push({
             id: `sn-front-${s1.id}`,
@@ -107,16 +152,16 @@ export function evaluateSeatingScore(
             student1Id: s1.id,
             student1Name: s1.name,
             desk1Id: d1.id,
-            description: `${s1.name} tem necessidade de sentar na frente (${s1.specialNeedsNotes || 'visão/audição/foco'}), mas está na fileira ${d1.row + 1}.`,
+            description: `${s1.name} tem necessidade de sentar na frente (${s1.specialNeedsNotes || 'baixa visão / audição / foco'}), mas está na fileira ${d1.row + 1}.`,
           });
         }
       } else if (hasBackNeed) {
         const lastRow = classroom.roomConfig.rows - 1;
         if (d1.row >= lastRow - 1) {
-          bonusPoints += 60 * (options.specialNeedsWeight / 5);
+          bonusPoints += 80 * snWeight;
           specialNeedsMet++;
         } else if (d1.row === 0) {
-          penaltyPoints += 150 * (options.specialNeedsWeight / 5);
+          penaltyPoints += 250 * snWeight;
           conflicts.push({
             id: `sn-back-${s1.id}`,
             type: 'back_need_violated',
@@ -124,22 +169,21 @@ export function evaluateSeatingScore(
             student1Id: s1.id,
             student1Name: s1.name,
             desk1Id: d1.id,
-            description: `${s1.name} é alto(a) ou prefere fundo, mas está na primeira fileira (pode obstruir a visão de colegas).`,
+            description: `${s1.name} é alto(a) ou prefere o fundo, mas está na primeira fileira (pode obstruir a visão de colegas).`,
           });
         }
       }
 
       if (hasMobilityNeed) {
-        // Aisle/accessible desk preference (first row or outer columns)
         const isOuterCol = d1.col === 0 || d1.col === classroom.roomConfig.cols - 1;
         if (isOuterCol || d1.row === 0) {
-          bonusPoints += 50 * (options.specialNeedsWeight / 5);
+          bonusPoints += 70 * snWeight;
           specialNeedsMet++;
         }
       }
     }
 
-    // Pair interactions
+    // Pair interactions (Proximity: Can Be Near vs Cannot Be Near)
     for (let j = i + 1; j < students.length; j++) {
       const s2 = students[j];
       const d2 = studentToDesk.get(s2.id);
@@ -148,21 +192,27 @@ export function evaluateSeatingScore(
       if (countedPairs.has(pairKey)) continue;
       countedPairs.add(pairKey);
 
-      // Determine anti-affinity relationship, level, and category
+      // Determine Anti-Affinity ("NÃO Podem Ficar Perto")
       const s1AntiRelation = s1.antiAffinityDetails?.find(r => r.targetStudentId === s2.id);
       const s2AntiRelation = s2.antiAffinityDetails?.find(r => r.targetStudentId === s1.id);
       const isAntiAffinity = !!s1AntiRelation || !!s2AntiRelation || s1.antiAffinities.includes(s2.id) || s2.antiAffinities.includes(s1.id);
       
-      const antiLevel = s1AntiRelation?.level || s2AntiRelation?.level || 'moderate';
+      const rawAntiLevel = s1AntiRelation?.level === 'critical' || s2AntiRelation?.level === 'critical'
+        ? 'critical'
+        : (s1AntiRelation?.level || s2AntiRelation?.level || 'moderate');
+      const antiScore = parseAntiAffinityScore(rawAntiLevel);
       const antiCategory = s1AntiRelation?.category || s2AntiRelation?.category || 'Desafeto / Conversa';
 
-      // Determine affinity relationship, level, and category
+      // Determine Affinity ("Podem Ficar Perto")
       const s1AffRelation = s1.affinityDetails?.find(r => r.targetStudentId === s2.id);
       const s2AffRelation = s2.affinityDetails?.find(r => r.targetStudentId === s1.id);
-      const isAffinity = !!s1AffRelation || !!s2AffRelation || s1.affinities.includes(s2.id) || s2.affinities.includes(s1.id);
+      const isAffinity = !isAntiAffinity && (!!s1AffRelation || !!s2AffRelation || s1.affinities.includes(s2.id) || s2.affinities.includes(s1.id));
 
-      const affLevel = s1AffRelation?.level || s2AffRelation?.level || 'medium';
-      const affCategory = s1AffRelation?.category || s2AffRelation?.category || 'Afinidade Pedagógica';
+      const rawAffLevel = s1AffRelation?.level === 'high' || s2AffRelation?.level === 'high'
+        ? 'high'
+        : (s1AffRelation?.level === 'low' && s2AffRelation?.level === 'low' ? 'low' : (s1AffRelation?.level || s2AffRelation?.level || 'medium'));
+      const affScore = parseAffinityScore(rawAffLevel);
+      const affCategory = s1AffRelation?.category || s2AffRelation?.category || 'Apoio Pedagógico';
 
       if (isAffinity) {
         totalAffinities++;
@@ -172,22 +222,24 @@ export function evaluateSeatingScore(
 
       const dist = calculateDistance(d1, d2);
       const gridDist = calculateGridChebyshev(d1, d2);
+      const isOrthogonal = Math.abs(d1.row - d2.row) + Math.abs(d1.col - d2.col) === 1; // Side-by-side or front/behind (dist === 1)
+      const isDiagonal = Math.abs(d1.row - d2.row) === 1 && Math.abs(d1.col - d2.col) === 1; // Immediate diagonal (dist ≈ 1.41)
 
-      // Anti-Affinity Conflict evaluation with Level & Category
+      // ========================================================
+      // 1. "NÃO PODEM FICAR PERTO" (Anti-Affinity / Distanciamento)
+      // ========================================================
       if (isAntiAffinity) {
-        // Multiplier based on anti-affinity severity level
-        let levelMultiplier = 1.0;
-        if (antiLevel === 'critical') levelMultiplier = 1.6;
-        else if (antiLevel === 'mild') levelMultiplier = 0.6;
+        const severityMultiplier = antiScore.multiplier * antiWeight;
 
-        if (gridDist <= 1) { // Direct neighbor (adjacent or diagonal)
-          const basePenalty = dist <= 1.05 ? 650 : 420;
-          penaltyPoints += basePenalty * levelMultiplier * (options.antiAffinityWeight / 5);
-          
+        if (isOrthogonal || dist <= 1.05) {
+          // Direct orthogonal neighbor (adjacent desk) - CATASTROPHIC VIOLATION
+          const penalty = 1800 * severityMultiplier;
+          penaltyPoints += penalty;
+
           conflicts.push({
-            id: `anti-${pairKey}`,
+            id: `anti-ortho-${pairKey}`,
             type: 'anti_affinity',
-            severity: antiLevel === 'critical' || dist <= 1.05 ? 'critical' : 'warning',
+            severity: 'critical',
             student1Id: s1.id,
             student2Id: s2.id,
             student1Name: s1.name,
@@ -196,15 +248,35 @@ export function evaluateSeatingScore(
             desk2Id: d2.id,
             distance: Number(dist.toFixed(1)),
             category: antiCategory,
-            level: antiLevel,
-            description: `[${antiCategory}] ${s1.name} e ${s2.name} possuem restrição (${antiLevel === 'critical' ? 'Crítica' : antiLevel === 'mild' ? 'Leve' : 'Moderada'}) e estão a ${dist.toFixed(1)} carteira(s) de distância.`,
+            level: antiScore.level,
+            description: `[${antiCategory}] Violação Crítica de Proximidade: ${s1.name} e ${s2.name} NÃO podem ficar perto (${antiScore.label}), mas estão lado a lado (distância: ${dist.toFixed(1)} carteira).`,
           });
-        } else if (dist <= 2.2) {
-          // If critical, even 2 desks away is a minor warning
-          if (antiLevel === 'critical') {
-            penaltyPoints += 220 * (options.antiAffinityWeight / 5);
+        } else if (isDiagonal || dist <= 1.45) {
+          // Diagonal neighbor - SEVERE VIOLATION
+          const penalty = 1200 * severityMultiplier;
+          penaltyPoints += penalty;
+
+          conflicts.push({
+            id: `anti-diag-${pairKey}`,
+            type: 'anti_affinity',
+            severity: antiScore.level === 'critical' ? 'critical' : 'warning',
+            student1Id: s1.id,
+            student2Id: s2.id,
+            student1Name: s1.name,
+            student2Name: s2.name,
+            desk1Id: d1.id,
+            desk2Id: d2.id,
+            distance: Number(dist.toFixed(1)),
+            category: antiCategory,
+            level: antiScore.level,
+            description: `[${antiCategory}] Violação de Proximidade: ${s1.name} e ${s2.name} NÃO podem ficar perto (${antiScore.label}), mas estão em carteiras diagonais vizinhas (distância: ${dist.toFixed(1)} carteiras).`,
+          });
+        } else if (dist <= 2.25) {
+          // Close proximity (1 desk between or knight's move)
+          if (antiScore.level === 'critical') {
+            penaltyPoints += 650 * severityMultiplier;
             conflicts.push({
-              id: `anti-warn-${pairKey}`,
+              id: `anti-close-${pairKey}`,
               type: 'anti_affinity',
               severity: 'warning',
               student1Id: s1.id,
@@ -215,42 +287,58 @@ export function evaluateSeatingScore(
               desk2Id: d2.id,
               distance: Number(dist.toFixed(1)),
               category: antiCategory,
-              level: antiLevel,
-              description: `[${antiCategory}] Restrição Crítica: ${s1.name} e ${s2.name} devem ser mantidos em extremidades opostas (distância atual: ${dist.toFixed(1)}).`,
+              level: antiScore.level,
+              description: `[${antiCategory}] Alerta de Distanciamento: ${s1.name} e ${s2.name} possuem restrição de Separação Obrigatória e estão muito próximos (distância: ${dist.toFixed(1)} carteiras).`,
             });
           } else {
-            penaltyPoints += 120 * levelMultiplier * (options.antiAffinityWeight / 5);
+            penaltyPoints += 320 * severityMultiplier;
           }
+        } else if (dist <= 3.2 && antiScore.level === 'critical') {
+          // Keep pushing critical anti-affinities to opposite corners
+          penaltyPoints += 180 * severityMultiplier;
+        } else if (dist >= 3.5 || gridDist >= 3) {
+          // Successfully isolated and distanced! Reward the algorithm
+          bonusPoints += 100 * severityMultiplier;
         }
       }
 
-      // Affinity Bonus with Level & Category
+      // ========================================================
+      // 2. "PODEM FICAR PERTO" (Affinity / Proximidade Recomendada)
+      // ========================================================
       if (isAffinity) {
-        let affLevelMultiplier = 1.0;
-        if (affLevel === 'high') affLevelMultiplier = 1.5;
-        else if (affLevel === 'low') affLevelMultiplier = 0.6;
+        const priorityMultiplier = affScore.multiplier * affWeight;
 
-        if (options.mode === 'focus_pairs') {
-          // Ideal distance is 1 (direct neighbor in pair)
-          if (dist === 1) {
-            bonusPoints += 140 * affLevelMultiplier * (options.affinityWeight / 5);
-            affinitiesMet++;
-          } else if (dist <= 1.5) {
-            bonusPoints += 80 * affLevelMultiplier * (options.affinityWeight / 5);
+        if (isOrthogonal || dist <= 1.05) {
+          // Direct orthogonal neighbor (adjacent desk) - MAXIMUM BONUS
+          bonusPoints += 550 * priorityMultiplier;
+          affinitiesMet++;
+        } else if (isDiagonal || dist <= 1.45) {
+          // Immediate diagonal neighbor - STRONG BONUS
+          bonusPoints += 380 * priorityMultiplier;
+          affinitiesMet++;
+        } else if (dist <= 2.25) {
+          // Close neighbor (1 desk separation)
+          bonusPoints += 180 * priorityMultiplier;
+          if (affScore.level !== 'high') {
             affinitiesMet++;
           }
+        } else if (dist <= 3.0) {
+          // Moderate proximity
+          bonusPoints += 60 * priorityMultiplier;
         } else {
-          if (dist >= 1 && dist <= 2.2 && !(s1.behavior === 'talkative' && s2.behavior === 'talkative')) {
-            bonusPoints += 70 * affLevelMultiplier * (options.affinityWeight / 5);
-            affinitiesMet++;
-          }
+          // DISTANT: If they can/should be near, being on opposite ends of the room incurs a distance gradient penalty
+          // This ensures Simulated Annealing continuously pulls them closer with zero flat plateaus!
+          penaltyPoints += (dist - 2.5) * 80 * priorityMultiplier;
         }
       }
 
-      // Two talkative students sitting together
-      if (s1.behavior === 'talkative' && s2.behavior === 'talkative') {
+      // ========================================================
+      // 3. Two Talkative Students Collision (Conversadores)
+      // ========================================================
+      // Only penalize if the teacher DID NOT explicitly mark them as "Podem Ficar Perto"
+      if (!isAffinity && s1.behavior === 'talkative' && s2.behavior === 'talkative') {
         if (gridDist <= 1) {
-          penaltyPoints += 300 * (options.separateTalkativeWeight / 5);
+          penaltyPoints += 360 * talkWeight;
           conflicts.push({
             id: `talkative-${pairKey}`,
             type: 'two_talkative',
@@ -262,7 +350,7 @@ export function evaluateSeatingScore(
             desk1Id: d1.id,
             desk2Id: d2.id,
             distance: Number(dist.toFixed(1)),
-            description: `Risco de conversas excessivas: ${s1.name} e ${s2.name} são ambos muito conversadores e estão lado a lado.`,
+            description: `Risco de dispersão: ${s1.name} e ${s2.name} são ambos muito conversadores e estão lado a lado sem afinidade pedagógica.`,
           });
         }
       }
@@ -285,13 +373,35 @@ export function evaluateSeatingScore(
     }
   });
 
-  // Calculate final normalized score 0 - 100
-  const maxPotentialScore = 1000;
-  const rawScore = maxPotentialScore + bonusPoints - penaltyPoints;
-  const normalizedScore = Math.max(0, Math.min(100, Math.round((rawScore / maxPotentialScore) * 100)));
+  // Calculate uncapped continuous fitness function for simulated annealing
+  const criticalCount = conflicts.filter(c => c.severity === 'critical').length;
+  const warningCount = conflicts.filter(c => c.severity === 'warning').length;
+  const rawFitness = bonusPoints - penaltyPoints - (criticalCount * 2500);
+
+  // Calculate normalized display score (0 - 100%) for report and UI
+  let displayScore = 100;
+  displayScore -= criticalCount * 30;
+  displayScore -= warningCount * 7;
+
+  if (totalAffinities > 0) {
+    const unmetAff = totalAffinities - affinitiesMet;
+    if (unmetAff > 0) {
+      displayScore -= Math.round((unmetAff / totalAffinities) * 25);
+    }
+  }
+
+  if (totalSpecialNeeds > 0) {
+    const unmetSN = totalSpecialNeeds - specialNeedsMet;
+    if (unmetSN > 0) {
+      displayScore -= Math.round((unmetSN / totalSpecialNeeds) * 20);
+    }
+  }
+
+  const normalizedScore = Math.max(15, Math.min(100, Math.round(displayScore)));
 
   return {
     score: normalizedScore,
+    rawFitness,
     conflicts,
     affinitiesMet,
     totalAffinities,
@@ -321,9 +431,13 @@ export function generateReport(
   const warningCount = result.conflicts.filter(c => c.severity === 'warning').length;
 
   if (criticalCount === 0 && warningCount === 0) {
-    summary = 'Excelente distribuição! Zero conflitos detectados e todas as restrições pedagógicas foram atendidas perfeitamente.';
+    if (result.totalAffinities > 0) {
+      summary = `Distribuição excelente! Zero conflitos detectados e 100% das proximidades desejadas (${result.affinitiesMet}/${result.totalAffinities}) foram posicionadas juntas com sucesso.`;
+    } else {
+      summary = 'Excelente distribuição! Zero conflitos detectados e todas as restrições pedagógicas foram atendidas perfeitamente.';
+    }
   } else if (criticalCount === 0) {
-    summary = `Boa distribuição (${result.score}% de harmonia). Nenhum conflito crítico e ${warningCount} ponto(s) de atenção leve(s).`;
+    summary = `Boa distribuição (${result.score}% de harmonia). Nenhum conflito crítico; ${result.affinitiesMet}/${result.totalAffinities} proximidades atendidas e ${warningCount} ponto(s) de atenção leve(s).`;
   } else {
     summary = `Atenção: Existem ${criticalCount} conflito(s) crítico(s) de proximidade que requerem ajuste ou troca de carteiras.`;
   }
@@ -343,7 +457,12 @@ export function generateReport(
 }
 
 /**
- * Intelligent Seating Optimizer Engine (Simulated Annealing + Heuristic Multi-pass)
+ * Intelligent Seating Optimizer Engine
+ * Features:
+ * - Smart Proximity-Guided Initial Seeding (Pairs friends together, pushes anti-affinities apart)
+ * - Adaptive Simulated Annealing with continuous rawFitness gradient
+ * - Targeted Conflict & Proximity neighborhood heuristic moves
+ * - Final Greedy Quenching for micro-alignment
  */
 export function runSeatingOptimizer(
   classroom: Classroom,
@@ -365,25 +484,60 @@ export function runSeatingOptimizer(
     return !isLockedInSeating;
   });
 
+  if (availableDesks.length === 0 || availableStudents.length === 0) {
+    return {
+      seatingMap: classroom.seatingMap || {},
+      report: generateReport(classroom.seatingMap || {}, classroom, options),
+    };
+  }
+
+  // Precompute desk distance lookup for lightning fast swaps
+  const deskMap = new Map<string, DeskPosition>();
+  activeDesks.forEach(d => deskMap.set(d.id, d));
+
+  // Pre-categorize students
+  const studentMap = new Map<string, Student>();
+  classroom.students.forEach(s => studentMap.set(s.id, s));
+
+  // Helper to shuffle array
+  const shuffle = <T>(arr: T[]): T[] => {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
+  // Find neighbor desks of a given desk within distance threshold
+  const getNearbyDesks = (deskId: string, maxDist = 1.45): DeskPosition[] => {
+    const d = deskMap.get(deskId);
+    if (!d) return [];
+    return availableDesks.filter(other => {
+      if (other.id === deskId) return false;
+      return calculateDistance(d, other) <= maxDist;
+    });
+  };
+
   // Best state tracker across restarts
   let globalBestSeating: Record<string, string | null> = {};
-  let globalBestScore = -999999;
+  let globalBestFitness = -Infinity;
 
-  const RESTARTS = 8;
-  const ITERATIONS_PER_RESTART = 1200;
+  const RESTARTS = 10;
+  const ITERATIONS_PER_RESTART = 1400;
 
   for (let restart = 0; restart < RESTARTS; restart++) {
-    // Current working seating
-    const currentSeating: Record<string, string | null> = {};
-    
-    // Copy locked desks
+    let currentSeating: Record<string, string | null> = {};
+
+    // 1. Copy locked desks
     Object.entries(classroom.seatingMap || {}).forEach(([deskId, sId]) => {
       if (lockedDesks[deskId] && sId) {
         currentSeating[deskId] = sId;
       }
     });
 
-    // Smart initial placement
+    // 2. Smart Seeding:
+    // Place front needs first in rows 0 and 1
     const frontNeeds = availableStudents.filter(s =>
       s.specialNeeds.some(n => ['low_vision', 'hearing_impairment', 'adhd_focus'].includes(n)) || 
       s.visionNeeds === 'needs_front' || 
@@ -393,79 +547,260 @@ export function runSeatingOptimizer(
     const backNeeds = availableStudents.filter(s =>
       s.specialNeeds.includes('tall_student') || s.preferredRow === 'back'
     );
-    const otherStudents = availableStudents.filter(s => !frontNeeds.includes(s) && !backNeeds.includes(s));
+    const regularStudents = availableStudents.filter(s => !frontNeeds.includes(s) && !backNeeds.includes(s));
 
-    // Shuffle each group with random perturbation
-    const shuffle = <T>(arr: T[]): T[] => [...arr].sort(() => Math.random() - 0.5);
+    // Desks by zone
+    const frontDesks = availableDesks.filter(d => d.row <= 1);
+    const backDesks = availableDesks.filter(d => d.row >= classroom.roomConfig.rows - 2);
+    const midDesks = availableDesks.filter(d => !frontDesks.includes(d) && !backDesks.includes(d));
 
-    const orderedStudents: Student[] = [
-      ...shuffle(frontNeeds),
-      ...shuffle(otherStudents),
-      ...shuffle(backNeeds)
-    ];
+    const assignedStudents = new Set<string>();
+    const assignedDesks = new Set<string>();
 
-    // Shuffle desks with bias towards front for frontNeeds
-    const shuffledDesks = [...availableDesks];
-    // Simple initial assignment
-    for (let i = 0; i < shuffledDesks.length; i++) {
-      const desk = shuffledDesks[i];
-      currentSeating[desk.id] = orderedStudents[i] ? orderedStudents[i].id : null;
+    // Seed front needs into front desks
+    const shuffledFrontNeeds = shuffle(frontNeeds);
+    const shuffledFrontDesks = shuffle(frontDesks);
+    shuffledFrontNeeds.forEach((student, idx) => {
+      if (idx < shuffledFrontDesks.length) {
+        const desk = shuffledFrontDesks[idx];
+        currentSeating[desk.id] = student.id;
+        assignedStudents.add(student.id);
+        assignedDesks.add(desk.id);
+      }
+    });
+
+    // Seed back needs into back desks
+    const shuffledBackNeeds = shuffle(backNeeds);
+    const shuffledBackDesks = shuffle(backDesks);
+    shuffledBackNeeds.forEach((student, idx) => {
+      if (idx < shuffledBackDesks.length) {
+        const desk = shuffledBackDesks[idx];
+        currentSeating[desk.id] = student.id;
+        assignedStudents.add(student.id);
+        assignedDesks.add(desk.id);
+      }
+    });
+
+    // Seed Affinity Pairs (High/Medium "Pode Ficar Perto") in adjacent/nearby desks!
+    const unassignedStudents = availableStudents.filter(s => !assignedStudents.has(s.id));
+    const unassignedDesks = availableDesks.filter(d => !assignedDesks.has(d.id));
+
+    // Identify affinity clusters
+    for (const student of shuffle(unassignedStudents)) {
+      if (assignedStudents.has(student.id)) continue;
+
+      // Check if student has an affinity with another unassigned student
+      const affRelations = (student.affinityDetails || []).filter(r => 
+        !assignedStudents.has(r.targetStudentId) && 
+        availableStudents.some(s => s.id === r.targetStudentId)
+      );
+
+      // Sort by priority (high first)
+      affRelations.sort((a, b) => (a.level === 'high' ? -1 : 1));
+
+      if (affRelations.length > 0 && unassignedDesks.length >= 2) {
+        const targetRel = affRelations[0];
+        const partnerStudent = availableStudents.find(s => s.id === targetRel.targetStudentId);
+
+        if (partnerStudent && !assignedStudents.has(partnerStudent.id)) {
+          // Find a desk for student, and an adjacent desk for partner
+          const deskAIdx = Math.floor(Math.random() * unassignedDesks.length);
+          const deskA = unassignedDesks[deskAIdx];
+
+          // Find adjacent available desk
+          const adjDesks = getNearbyDesks(deskA.id, 1.45).filter(d => !assignedDesks.has(d.id));
+          if (adjDesks.length > 0) {
+            const deskB = adjDesks[0];
+
+            currentSeating[deskA.id] = student.id;
+            currentSeating[deskB.id] = partnerStudent.id;
+            assignedStudents.add(student.id);
+            assignedStudents.add(partnerStudent.id);
+            assignedDesks.add(deskA.id);
+            assignedDesks.add(deskB.id);
+
+            // Remove from unassignedDesks
+            const idx1 = unassignedDesks.findIndex(d => d.id === deskA.id);
+            if (idx1 >= 0) unassignedDesks.splice(idx1, 1);
+            const idx2 = unassignedDesks.findIndex(d => d.id === deskB.id);
+            if (idx2 >= 0) unassignedDesks.splice(idx2, 1);
+            continue;
+          }
+        }
+      }
     }
 
-    // Evaluate initial score
-    let currentEval = evaluateSeatingScore(currentSeating, classroom, options);
-    let currentScore = currentEval.score * 10 - currentEval.conflicts.filter(c => c.severity === 'critical').length * 500;
-    
-    let bestLocalSeating = { ...currentSeating };
-    let bestLocalScore = currentScore;
+    // Place remaining students into remaining desks
+    const remainingStudents = shuffle(availableStudents.filter(s => !assignedStudents.has(s.id)));
+    const remainingDesks = shuffle(availableDesks.filter(d => !assignedDesks.has(d.id)));
 
-    // Simulated Annealing
-    let temperature = 100.0;
-    const coolingRate = 0.994;
+    for (let i = 0; i < remainingDesks.length; i++) {
+      const desk = remainingDesks[i];
+      currentSeating[desk.id] = remainingStudents[i] ? remainingStudents[i].id : null;
+    }
+
+    // Initial fitness evaluation using continuous rawFitness
+    let currentEval = evaluateSeatingScore(currentSeating, classroom, options);
+    let currentFitness = currentEval.rawFitness;
+
+    let bestLocalSeating = { ...currentSeating };
+    let bestLocalFitness = currentFitness;
+
+    // Simulated Annealing with Guided Neighborhood Heuristic Moves
+    let temperature = 80.0;
+    const coolingRate = 0.993;
 
     for (let iter = 0; iter < ITERATIONS_PER_RESTART; iter++) {
       if (availableDesks.length < 2) break;
 
-      // Pick two random available desks to swap
-      const idxA = Math.floor(Math.random() * availableDesks.length);
-      let idxB = Math.floor(Math.random() * availableDesks.length);
-      while (idxA === idxB && availableDesks.length > 1) {
-        idxB = Math.floor(Math.random() * availableDesks.length);
+      let deskAId: string;
+      let deskBId: string;
+
+      const randomHeuristic = Math.random();
+
+      if (randomHeuristic < 0.28 && currentEval.conflicts.length > 0) {
+        // TARGETED MOVE 1: Resolve Anti-affinity or Critical Conflict
+        // Pick a student involved in an active conflict
+        const antiConflict = currentEval.conflicts.find(c => c.type === 'anti_affinity');
+        if (antiConflict && antiConflict.desk1Id && antiConflict.desk2Id) {
+          deskAId = Math.random() < 0.5 ? antiConflict.desk1Id : antiConflict.desk2Id;
+          const otherDesk = deskAId === antiConflict.desk1Id ? antiConflict.desk2Id : antiConflict.desk1Id;
+          const otherPos = deskMap.get(otherDesk);
+
+          // Find candidate desks far away from the other student (distance >= 3.0)
+          const farDesks = availableDesks.filter(d => {
+            if (d.id === deskAId || d.id === otherDesk) return false;
+            return otherPos ? calculateDistance(d, otherPos) >= 3.0 : true;
+          });
+
+          if (farDesks.length > 0) {
+            deskBId = farDesks[Math.floor(Math.random() * farDesks.length)].id;
+          } else {
+            deskBId = availableDesks[Math.floor(Math.random() * availableDesks.length)].id;
+          }
+        } else {
+          // Pick any conflict desk
+          const conflict = currentEval.conflicts[Math.floor(Math.random() * currentEval.conflicts.length)];
+          deskAId = conflict.desk1Id;
+          deskBId = availableDesks[Math.floor(Math.random() * availableDesks.length)].id;
+        }
+      } else if (randomHeuristic < 0.56 && currentEval.totalAffinities > currentEval.affinitiesMet) {
+        // TARGETED MOVE 2: Fulfill Proximity ("Podem Ficar Perto")
+        // Find an affinity pair that is currently separated
+        const studentToDeskMap = new Map<string, DeskPosition>();
+        Object.entries(currentSeating).forEach(([dId, sId]) => {
+          if (sId && deskMap.has(dId)) studentToDeskMap.set(sId, deskMap.get(dId)!);
+        });
+
+        let targetPairFound = false;
+        deskAId = availableDesks[0].id;
+        deskBId = availableDesks[1].id;
+
+        for (const s1 of classroom.students) {
+          const d1 = studentToDeskMap.get(s1.id);
+          if (!d1 || lockedDesks[d1.id]) continue;
+
+          for (const affId of s1.affinities || []) {
+            const s2 = studentMap.get(affId);
+            const d2 = s2 ? studentToDeskMap.get(s2.id) : null;
+
+            if (d2 && !lockedDesks[d2.id]) {
+              const currentDist = calculateDistance(d1, d2);
+              if (currentDist > 1.45) { // Separated!
+                // Try moving s2 to a neighbor desk of d1
+                const nearby = getNearbyDesks(d1.id, 1.45).filter(d => !lockedDesks[d.id]);
+                if (nearby.length > 0) {
+                  deskAId = d2.id;
+                  deskBId = nearby[Math.floor(Math.random() * nearby.length)].id;
+                  targetPairFound = true;
+                  break;
+                }
+              }
+            }
+          }
+          if (targetPairFound) break;
+        }
+
+        if (!targetPairFound) {
+          const idxA = Math.floor(Math.random() * availableDesks.length);
+          let idxB = Math.floor(Math.random() * availableDesks.length);
+          while (idxA === idxB) idxB = Math.floor(Math.random() * availableDesks.length);
+          deskAId = availableDesks[idxA].id;
+          deskBId = availableDesks[idxB].id;
+        }
+      } else {
+        // TARGETED MOVE 3 / EXPLORATORY: Pick two random available desks
+        const idxA = Math.floor(Math.random() * availableDesks.length);
+        let idxB = Math.floor(Math.random() * availableDesks.length);
+        while (idxA === idxB) idxB = Math.floor(Math.random() * availableDesks.length);
+        deskAId = availableDesks[idxA].id;
+        deskBId = availableDesks[idxB].id;
       }
 
-      const deskA = availableDesks[idxA].id;
-      const deskB = availableDesks[idxB].id;
+      // Avoid swapping two null desks (no-op)
+      const studentA = currentSeating[deskAId] || null;
+      const studentB = currentSeating[deskBId] || null;
+      if (!studentA && !studentB) continue;
 
-      // Swap
-      const studentA = currentSeating[deskA] || null;
-      const studentB = currentSeating[deskB] || null;
-
-      currentSeating[deskA] = studentB;
-      currentSeating[deskB] = studentA;
+      // Perform swap
+      currentSeating[deskAId] = studentB;
+      currentSeating[deskBId] = studentA;
 
       const newEval = evaluateSeatingScore(currentSeating, classroom, options);
-      const newScore = newEval.score * 10 - newEval.conflicts.filter(c => c.severity === 'critical').length * 500;
+      const delta = newEval.rawFitness - currentFitness;
 
-      const delta = newScore - currentScore;
+      // Acceptance criterion (Metropolis)
+      if (delta > 0 || (temperature > 0.1 && Math.exp(delta / temperature) > Math.random())) {
+        currentFitness = newEval.rawFitness;
+        currentEval = newEval;
 
-      // Acceptance criterion
-      if (delta > 0 || Math.exp(delta / temperature) > Math.random()) {
-        currentScore = newScore;
-        if (currentScore > bestLocalScore) {
-          bestLocalScore = currentScore;
+        if (currentFitness > bestLocalFitness) {
+          bestLocalFitness = currentFitness;
           bestLocalSeating = { ...currentSeating };
         }
       } else {
         // Revert swap
-        currentSeating[deskA] = studentA;
-        currentSeating[deskB] = studentB;
+        currentSeating[deskAId] = studentA;
+        currentSeating[deskBId] = studentB;
       }
 
       temperature *= coolingRate;
     }
 
-    if (bestLocalScore > globalBestScore) {
-      globalBestScore = bestLocalScore;
+    // Quenching Phase: 200 greedy deterministic iterations to polish the final local state
+    currentSeating = { ...bestLocalSeating };
+    currentFitness = bestLocalFitness;
+
+    for (let q = 0; q < 220; q++) {
+      const idxA = Math.floor(Math.random() * availableDesks.length);
+      let idxB = Math.floor(Math.random() * availableDesks.length);
+      while (idxA === idxB) idxB = Math.floor(Math.random() * availableDesks.length);
+
+      const deskAId = availableDesks[idxA].id;
+      const deskBId = availableDesks[idxB].id;
+
+      const studentA = currentSeating[deskAId] || null;
+      const studentB = currentSeating[deskBId] || null;
+      if (!studentA && !studentB) continue;
+
+      currentSeating[deskAId] = studentB;
+      currentSeating[deskBId] = studentA;
+
+      const newEval = evaluateSeatingScore(currentSeating, classroom, options);
+      const delta = newEval.rawFitness - currentFitness;
+
+      if (delta > 0) {
+        currentFitness = newEval.rawFitness;
+        bestLocalFitness = currentFitness;
+        bestLocalSeating = { ...currentSeating };
+      } else {
+        currentSeating[deskAId] = studentA;
+        currentSeating[deskBId] = studentB;
+      }
+    }
+
+    if (bestLocalFitness > globalBestFitness) {
+      globalBestFitness = bestLocalFitness;
       globalBestSeating = { ...bestLocalSeating };
     }
 
@@ -481,3 +816,4 @@ export function runSeatingOptimizer(
     report: finalReport,
   };
 }
+

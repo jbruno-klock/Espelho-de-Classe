@@ -17,7 +17,9 @@ import {
   DoorOpen, 
   Sparkles,
   Layers,
-  Info
+  Info,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 import { Classroom, Student, RoomConfig } from '../types';
 
@@ -206,7 +208,7 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                 const isLocked = lockedDesks[deskId];
                 const isSelected = selectedDeskId === deskId;
 
-                // Affinity / Anti-affinity highlight check
+                // Proximity highlights (Pode ficar perto vs NÃO pode ficar perto)
                 let highlightClass = '';
                 let highlightBadge = null;
 
@@ -217,15 +219,15 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                   if (isAffinity) {
                     highlightClass = 'ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 shadow-md animate-pulse border-emerald-400 dark:border-emerald-500/50';
                     highlightBadge = (
-                      <span className="absolute -top-1.5 -right-1.5 bg-emerald-600 text-white rounded-full p-0.5 shadow-md text-[8px] font-bold flex items-center gap-0.5 z-20">
-                        <Heart className="w-2.5 h-2.5 fill-white" />
+                      <span className="absolute -top-1.5 -right-1.5 bg-emerald-600 text-white rounded-full p-0.5 shadow-md text-[8px] font-bold flex items-center gap-0.5 z-20" title="Pode sentar próximo">
+                        <UserCheck className="w-2.5 h-2.5" />
                       </span>
                     );
                   } else if (isAnti) {
                     highlightClass = 'ring-2 ring-rose-500 bg-rose-50 dark:bg-rose-950/40 shadow-md animate-bounce border-rose-400 dark:border-rose-500/50';
                     highlightBadge = (
-                      <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white rounded-full p-0.5 shadow-md text-[8px] font-bold flex items-center gap-0.5 z-20">
-                        <AlertTriangle className="w-2.5 h-2.5" />
+                      <span className="absolute -top-1.5 -right-1.5 bg-rose-600 text-white rounded-full p-0.5 shadow-md text-[8px] font-bold flex items-center gap-0.5 z-20" title="NÃO pode sentar próximo">
+                        <UserX className="w-2.5 h-2.5" />
                       </span>
                     );
                   }

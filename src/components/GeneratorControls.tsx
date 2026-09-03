@@ -37,9 +37,30 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
   const [mode, setMode] = useState<GenerationOptions['mode']>('balanced');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [antiAffinityWeight, setAntiAffinityWeight] = useState(9);
-  const [affinityWeight, setAffinityWeight] = useState(7);
+  const [affinityWeight, setAffinityWeight] = useState(8);
   const [specialNeedsWeight, setSpecialNeedsWeight] = useState(10);
   const [separateTalkativeWeight, setSeparateTalkativeWeight] = useState(8);
+
+  const handleModeChange = (newMode: GenerationOptions['mode']) => {
+    setMode(newMode);
+    if (newMode === 'focus_pairs') {
+      setAffinityWeight(10);
+      setAntiAffinityWeight(8);
+    } else if (newMode === 'pedagogical_inclusion') {
+      setSpecialNeedsWeight(10);
+      setAffinityWeight(8);
+      setAntiAffinityWeight(9);
+    } else if (newMode === 'random_constrained') {
+      setAntiAffinityWeight(10);
+      setAffinityWeight(2);
+      setSeparateTalkativeWeight(10);
+    } else {
+      setAntiAffinityWeight(9);
+      setAffinityWeight(8);
+      setSpecialNeedsWeight(10);
+      setSeparateTalkativeWeight(8);
+    }
+  };
 
   const handleGenerate = () => {
     onRunGenerator({
@@ -69,7 +90,7 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
           </span>
 
           <button
-            onClick={() => setMode('balanced')}
+            onClick={() => handleModeChange('balanced')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               mode === 'balanced'
                 ? 'bg-emerald-600 dark:bg-indigo-600 text-white shadow-xs'
@@ -81,7 +102,7 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
           </button>
 
           <button
-            onClick={() => setMode('focus_pairs')}
+            onClick={() => handleModeChange('focus_pairs')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               mode === 'focus_pairs'
                 ? 'bg-emerald-600 dark:bg-indigo-600 text-white shadow-xs'
@@ -93,7 +114,7 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
           </button>
 
           <button
-            onClick={() => setMode('pedagogical_inclusion')}
+            onClick={() => handleModeChange('pedagogical_inclusion')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               mode === 'pedagogical_inclusion'
                 ? 'bg-emerald-600 dark:bg-indigo-600 text-white shadow-xs'
@@ -105,7 +126,7 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
           </button>
 
           <button
-            onClick={() => setMode('random_constrained')}
+            onClick={() => handleModeChange('random_constrained')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               mode === 'random_constrained'
                 ? 'bg-emerald-600 dark:bg-indigo-600 text-white shadow-xs'
@@ -170,7 +191,7 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
             <div>
               <div className="flex justify-between mb-1">
-                <span className="font-semibold text-slate-700 dark:text-zinc-300">Evitar Desafinidades:</span>
+                <span className="font-semibold text-slate-700 dark:text-zinc-300">Distanciar (NÃO Perto):</span>
                 <span className="font-bold text-rose-600 dark:text-rose-400">{antiAffinityWeight}/10</span>
               </div>
               <input
@@ -185,7 +206,7 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
 
             <div>
               <div className="flex justify-between mb-1">
-                <span className="font-semibold text-slate-700 dark:text-zinc-300">Estimular Afinidades:</span>
+                <span className="font-semibold text-slate-700 dark:text-zinc-300">Aproximar (Pode Perto):</span>
                 <span className="font-bold text-emerald-600 dark:text-emerald-400">{affinityWeight}/10</span>
               </div>
               <input
@@ -257,8 +278,18 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
             </div>
           </div>
 
-          {/* Conflict Count Button */}
-          <div className="flex items-center gap-3 text-xs">
+          {/* Conflict & Proximity Badges */}
+          <div className="flex items-center gap-2.5 flex-wrap text-xs">
+            {report.totalAffinities > 0 && (
+              <span 
+                className="px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300 dark:border-emerald-800/50 flex items-center gap-1.5"
+                title="Proporção de afinidades pedagógicas atendidas próximas no espelho"
+              >
+                <HeartHandshake className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Proximidade: {report.affinitiesSatisfied}/{report.totalAffinities}</span>
+              </span>
+            )}
+
             {criticalConflicts.length > 0 && (
               <button
                 onClick={onOpenConflictModal}

@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
-import { Classroom, Student, StudentRelation, GenerationOptions, GenerationReport, RoomConfig, Institution, AppUser } from './types';
+import { Classroom, Student, StudentRelation, GenerationOptions, GenerationReport, RoomConfig, Institution, AppUser, SeatingPlanCategory, SavedSeatingPlan } from './types';
 import { INITIAL_CLASSROOMS, INITIAL_INSTITUTIONS, INITIAL_USERS, createDefaultRoomConfig } from './utils/sampleData';
 import { runSeatingOptimizer, generateReport } from './utils/algorithm';
 import { exportClassroomToCSV, exportBackupJSON, exportToPdf } from './utils/exportUtils';
+import {
+  ensureClassroomPlans,
+  syncActivePlanWithClassroom,
+  switchClassroomPlan,
+  createNewSeatingPlan,
+  duplicateSeatingPlan,
+  deleteSeatingPlan,
+  updateSeatingPlanMeta,
+} from './utils/seatingPlanUtils';
 import {
   subscribeToCloudData,
   syncInstitutionToCloud,
@@ -20,6 +29,7 @@ import { Navbar } from './components/Navbar';
 import { LoginScreen } from './components/LoginScreen';
 import { SeatingGrid } from './components/SeatingGrid';
 import { GeneratorControls } from './components/GeneratorControls';
+import { SeatingPlanBar } from './components/SeatingPlanBar';
 import { StudentDatabase } from './components/StudentDatabase';
 import { PrintableExportView } from './components/PrintableExportView';
 import { ClassModal } from './components/ClassModal';
@@ -32,6 +42,8 @@ import { ConflictModal } from './components/ConflictModal';
 import { MasterAdminDashboard } from './components/MasterAdminDashboard';
 import { InstitutionModal } from './components/InstitutionModal';
 import { UserModal } from './components/UserModal';
+import { ClearMapModal } from './components/ClearMapModal';
+import { ResetDataModal } from './components/ResetDataModal';
 
 const STORAGE_KEY_CLASSROOMS = 'espelho_classe_data_v2';
 const STORAGE_KEY_INSTITUTIONS = 'espelho_institutions_v2';
@@ -122,17 +134,28 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY_CLASSROOMS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(c => {
+            const { plans, activePlanId } = ensureClassroomPlans(c);
+            return { ...c, savedPlans: plans, activePlanId };
+          });
+        }
       }
     } catch (e) {
       console.error('Error loading classrooms:', e);
     }
-    return INITIAL_CLASSROOMS;
+    return INITIAL_CLASSROOMS.map(c => {
+      const { plans, activePlanId } = ensureClassroomPlans(c);
+      return { ...c, savedPlans: plans, activePlanId };
+    });
   });
 
   // Cloud Sync Status
   const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
   const isInitialCloudSyncRef = useRef<boolean>(true);
+
+  // Feedback for Seating Plan actions
+  const [planFeedback, setPlanFeedback] = useState<string | null>(null);
 
   // Firebase Real-time Listener Connection
   useEffect(() => {
@@ -158,7 +181,11 @@ export default function App() {
       },
       onClassrooms: (cloudClassrooms) => {
         if (cloudClassrooms && cloudClassrooms.length > 0) {
-          setAllClassrooms(cloudClassrooms);
+          const initialized = cloudClassrooms.map(c => {
+            const { plans, activePlanId } = ensureClassroomPlans(c);
+            return { ...c, savedPlans: plans, activePlanId };
+          });
+          setAllClassrooms(initialized);
         }
         setIsCloudSynced(true);
       },
@@ -238,6 +265,10 @@ export default function App() {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
 
+  // Clear Map and Reset Data Modals (Replaces window.confirm for iframe reliability)
+  const [isClearMapModalOpen, setIsClearMapModalOpen] = useState(false);
+  const [isResetDataModalOpen, setIsResetDataModalOpen] = useState(false);
+
   // Save changes to localStorage
   useEffect(() => {
     try {
@@ -297,12 +328,129 @@ export default function App() {
       prev.map(cls => {
         if (cls.id === activeClassroom.id) {
           const updated = updater(cls);
+          const withSyncedPlan = syncActivePlanWithClassroom(updated);
+          syncClassroomToCloud(withSyncedPlan);
+          return withSyncedPlan;
+        }
+        return cls;
+      })
+    );
+  };
+
+  // Seating Plan Handlers (Espelhos múltiplos por turma)
+  const handleSwitchPlan = (planId: string) => {
+    setAllClassrooms(prev =>
+      prev.map(cls => {
+        if (cls.id === activeClassroom.id) {
+          // Sync current changes before switching
+          const synced = syncActivePlanWithClassroom(cls);
+          const switched = switchClassroomPlan(synced, planId);
+          syncClassroomToCloud(switched);
+          return switched;
+        }
+        return cls;
+      })
+    );
+    const targetPlan = activeClassroom.savedPlans?.find(p => p.id === planId);
+    setPlanFeedback(`Espelho "${targetPlan?.name || 'selecionado'}" ativado`);
+    setTimeout(() => setPlanFeedback(null), 3000);
+  };
+
+  const handleCreatePlan = (
+    name: string,
+    category: SeatingPlanCategory,
+    initialMode: 'copy_current' | 'blank' | 'clean_unlocked',
+    description?: string
+  ) => {
+    setAllClassrooms(prev =>
+      prev.map(cls => {
+        if (cls.id === activeClassroom.id) {
+          const synced = syncActivePlanWithClassroom(cls);
+          const { updatedClassroom } = createNewSeatingPlan(synced, name, category, initialMode, description);
+          syncClassroomToCloud(updatedClassroom);
+          return updatedClassroom;
+        }
+        return cls;
+      })
+    );
+    setPlanFeedback(`Espelho "${name}" criado com sucesso!`);
+    setTimeout(() => setPlanFeedback(null), 3500);
+  };
+
+  const handleDuplicatePlan = (planId: string, customName?: string) => {
+    setAllClassrooms(prev =>
+      prev.map(cls => {
+        if (cls.id === activeClassroom.id) {
+          const synced = syncActivePlanWithClassroom(cls);
+          const { updatedClassroom } = duplicateSeatingPlan(synced, planId, customName);
+          syncClassroomToCloud(updatedClassroom);
+          return updatedClassroom;
+        }
+        return cls;
+      })
+    );
+    setPlanFeedback('Espelho duplicado com sucesso!');
+    setTimeout(() => setPlanFeedback(null), 3500);
+  };
+
+  const handleRenamePlan = (planId: string, newName: string, category?: SeatingPlanCategory, description?: string) => {
+    setAllClassrooms(prev =>
+      prev.map(cls => {
+        if (cls.id === activeClassroom.id) {
+          const updated = updateSeatingPlanMeta(cls, planId, { name: newName, category, description });
           syncClassroomToCloud(updated);
           return updated;
         }
         return cls;
       })
     );
+    setPlanFeedback('Espelho atualizado com sucesso');
+    setTimeout(() => setPlanFeedback(null), 3000);
+  };
+
+  const handleDeletePlan = (planId: string) => {
+    setAllClassrooms(prev =>
+      prev.map(cls => {
+        if (cls.id === activeClassroom.id) {
+          const updated = deleteSeatingPlan(cls, planId);
+          syncClassroomToCloud(updated);
+          return updated;
+        }
+        return cls;
+      })
+    );
+    setPlanFeedback('Espelho excluído');
+    setTimeout(() => setPlanFeedback(null), 3000);
+  };
+
+  const handleSetDefaultPlan = (planId: string) => {
+    setAllClassrooms(prev =>
+      prev.map(cls => {
+        if (cls.id === activeClassroom.id) {
+          const updated = updateSeatingPlanMeta(cls, planId, { isDefault: true });
+          syncClassroomToCloud(updated);
+          return updated;
+        }
+        return cls;
+      })
+    );
+    setPlanFeedback('Definido como Espelho Oficial da turma');
+    setTimeout(() => setPlanFeedback(null), 3000);
+  };
+
+  const handleSaveCurrentSnapshot = () => {
+    setAllClassrooms(prev =>
+      prev.map(cls => {
+        if (cls.id === activeClassroom.id) {
+          const updated = syncActivePlanWithClassroom(cls);
+          syncClassroomToCloud(updated);
+          return updated;
+        }
+        return cls;
+      })
+    );
+    setPlanFeedback('Espelho salvo com sucesso!');
+    setTimeout(() => setPlanFeedback(null), 3500);
   };
 
   // Run Optimizer Engine
@@ -375,19 +523,52 @@ export default function App() {
   };
 
   const handleClearSeating = () => {
-    if (confirm('Deseja limpar todas as carteiras ocupadas e reiniciar o mapa?')) {
-      updateActiveClassroom(prev => {
-        const clearedMap: Record<string, string | null> = {};
-        Object.keys(prev.seatingMap).forEach(key => {
-          if (prev.lockedDesks[key]) {
-            clearedMap[key] = prev.seatingMap[key];
+    setIsClearMapModalOpen(true);
+  };
+
+  const handleConfirmClearMap = (mode: 'unlocked_only' | 'all') => {
+    updateActiveClassroom(prev => {
+      const rows = prev.roomConfig?.rows || 6;
+      const cols = prev.roomConfig?.cols || 6;
+      const clearedMap: Record<string, string | null> = {};
+      const newLocked: Record<string, boolean> = mode === 'all' ? {} : { ...(prev.lockedDesks || {}) };
+
+      // Initialize all coordinate desks explicitly
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const deskId = `r${r}_c${c}`;
+          if (mode === 'unlocked_only' && prev.lockedDesks?.[deskId] && prev.seatingMap?.[deskId]) {
+            clearedMap[deskId] = prev.seatingMap[deskId];
           } else {
-            clearedMap[key] = null;
+            clearedMap[deskId] = null;
           }
-        });
-        return { ...prev, seatingMap: clearedMap, updatedAt: Date.now() };
+        }
+      }
+
+      // Also account for any custom or legacy keys
+      Object.keys(prev.seatingMap || {}).forEach(key => {
+        if (mode === 'unlocked_only' && prev.lockedDesks?.[key] && prev.seatingMap?.[key]) {
+          clearedMap[key] = prev.seatingMap[key];
+        } else {
+          clearedMap[key] = null;
+        }
       });
-    }
+
+      return {
+        ...prev,
+        seatingMap: clearedMap,
+        lockedDesks: newLocked,
+        updatedAt: Date.now(),
+      };
+    });
+
+    setIsClearMapModalOpen(false);
+    setPlanFeedback(
+      mode === 'all'
+        ? 'Mapa de carteiras completamente esvaziado!'
+        : 'Carteiras livres esvaziadas (fixas preservadas)'
+    );
+    setTimeout(() => setPlanFeedback(null), 3500);
   };
 
   // Student CRUD
@@ -606,20 +787,24 @@ export default function App() {
   };
 
   // Reset to initial sample data
-  const handleResetToSample = async () => {
-    if (confirm('Deseja restaurar os dados padrão de instituições, gestores e turmas?')) {
-      setInstitutions(INITIAL_INSTITUTIONS);
-      setUsers(INITIAL_USERS);
-      setAllClassrooms(INITIAL_CLASSROOMS);
-      setCurrentUser(INITIAL_USERS[0]);
-      setMasterSelectedInstitutionId(INITIAL_INSTITUTIONS[0].id);
-      setActiveClassroomId(INITIAL_CLASSROOMS[0].id);
-      localStorage.removeItem(STORAGE_KEY_CLASSROOMS);
-      localStorage.removeItem(STORAGE_KEY_INSTITUTIONS);
-      localStorage.removeItem(STORAGE_KEY_USERS);
-      localStorage.removeItem(STORAGE_KEY_AUTH);
-      await pushAllLocalDataToCloud(INITIAL_INSTITUTIONS, INITIAL_USERS, INITIAL_CLASSROOMS);
-    }
+  const handleResetToSample = () => {
+    setIsResetDataModalOpen(true);
+  };
+
+  const handleConfirmResetToSample = async () => {
+    setInstitutions(INITIAL_INSTITUTIONS);
+    setUsers(INITIAL_USERS);
+    setAllClassrooms(INITIAL_CLASSROOMS);
+    setCurrentUser(INITIAL_USERS[0]);
+    setMasterSelectedInstitutionId(INITIAL_INSTITUTIONS[0].id);
+    setActiveClassroomId(INITIAL_CLASSROOMS[0].id);
+    localStorage.removeItem(STORAGE_KEY_CLASSROOMS);
+    localStorage.removeItem(STORAGE_KEY_INSTITUTIONS);
+    localStorage.removeItem(STORAGE_KEY_USERS);
+    localStorage.removeItem(STORAGE_KEY_AUTH);
+    await pushAllLocalDataToCloud(INITIAL_INSTITUTIONS, INITIAL_USERS, INITIAL_CLASSROOMS);
+    setPlanFeedback('Dados de exemplo restaurados com sucesso!');
+    setTimeout(() => setPlanFeedback(null), 3500);
   };
 
   // Force push all local state to Cloud
@@ -746,6 +931,19 @@ export default function App() {
         {/* VIEW: INTERACTIVE SEATING MAP */}
         {activeTab === 'map' && (
           <div className="w-full px-2 sm:px-4 lg:px-6 py-3 space-y-4">
+            {/* Seating Plan Selector & Management Bar (Múltiplos Espelhos) */}
+            <SeatingPlanBar
+              classroom={activeClassroom}
+              onSwitchPlan={handleSwitchPlan}
+              onCreatePlan={handleCreatePlan}
+              onDuplicatePlan={handleDuplicatePlan}
+              onRenamePlan={handleRenamePlan}
+              onDeletePlan={handleDeletePlan}
+              onSetDefaultPlan={handleSetDefaultPlan}
+              onSaveCurrentSnapshot={handleSaveCurrentSnapshot}
+              saveFeedback={planFeedback}
+            />
+
             <GeneratorControls
               classroom={activeClassroom}
               report={currentReport}
@@ -815,6 +1013,7 @@ export default function App() {
             classroom={activeClassroom}
             institution={activeInstitution}
             onBackToEditor={() => setActiveTab('map')}
+            onSwitchPlan={handleSwitchPlan}
             onOpenInstitutionSettings={isMaster ? () => {
               setEditingInstitution(activeInstitution || null);
               setIsInstitutionModalOpen(true);
@@ -912,6 +1111,22 @@ export default function App() {
         onDelete={handleDeleteUser}
         institutions={institutions}
         initialData={editingUser}
+      />
+
+      {/* Clear Map Confirmation Modal */}
+      <ClearMapModal
+        isOpen={isClearMapModalOpen}
+        onClose={() => setIsClearMapModalOpen(false)}
+        classroom={activeClassroom}
+        activePlanName={activeClassroom.savedPlans?.find(p => p.id === activeClassroom.activePlanId)?.name || 'Espelho Oficial'}
+        onConfirmClear={handleConfirmClearMap}
+      />
+
+      {/* Reset Data Confirmation Modal */}
+      <ResetDataModal
+        isOpen={isResetDataModalOpen}
+        onClose={() => setIsResetDataModalOpen(false)}
+        onConfirmReset={handleConfirmResetToSample}
       />
 
     </div>
