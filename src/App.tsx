@@ -37,6 +37,7 @@ import { DeleteClassModal } from './components/DeleteClassModal';
 import { RoomConfigModal } from './components/RoomConfigModal';
 import { StudentModal } from './components/StudentModal';
 import { BatchImportModal } from './components/BatchImportModal';
+import { TeacherSpreadsheetModal } from './components/TeacherSpreadsheetModal';
 import { AffinityMatrixModal } from './components/AffinityMatrixModal';
 import { ConflictModal } from './components/ConflictModal';
 import { MasterAdminDashboard } from './components/MasterAdminDashboard';
@@ -255,6 +256,7 @@ export default function App() {
   const [isRoomConfigModalOpen, setIsRoomConfigModalOpen] = useState(false);
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isBatchImportModalOpen, setIsBatchImportModalOpen] = useState(false);
+  const [isTeacherSpreadsheetModalOpen, setIsTeacherSpreadsheetModalOpen] = useState(false);
   const [isAffinityMatrixModalOpen, setIsAffinityMatrixModalOpen] = useState(false);
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -981,6 +983,7 @@ export default function App() {
             }}
             onDeleteStudent={handleDeleteStudent}
             onOpenBatchImportModal={() => setIsBatchImportModalOpen(true)}
+            onOpenTeacherSpreadsheetModal={() => setIsTeacherSpreadsheetModalOpen(true)}
           />
         )}
 
@@ -1071,6 +1074,16 @@ export default function App() {
         onImportStudents={handleBatchImport}
         existingStudents={activeClassroom.students}
         existingCount={activeClassroom.students.length}
+        classroom={activeClassroom}
+        institution={activeInstitution}
+        onOpenTeacherSpreadsheetModal={() => setIsTeacherSpreadsheetModalOpen(true)}
+      />
+
+      <TeacherSpreadsheetModal
+        isOpen={isTeacherSpreadsheetModalOpen}
+        onClose={() => setIsTeacherSpreadsheetModalOpen(false)}
+        classroom={activeClassroom}
+        institution={activeInstitution}
       />
 
       <AffinityMatrixModal

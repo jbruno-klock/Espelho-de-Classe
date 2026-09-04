@@ -4,9 +4,10 @@ import {
   UserCheck, Download, AlertCircle, Sparkles, RefreshCw, CheckCircle2,
   Sliders, Eye, Table, Layers, FileSpreadsheet, Search
 } from 'lucide-react';
-import { Student, StudentRelation, SpecialNeedType } from '../types';
+import { Student, StudentRelation, SpecialNeedType, Classroom, Institution, CanBeNearLevel, CannotBeNearLevel } from '../types';
 import { AVATAR_COLORS } from '../utils/sampleData';
 import { decodeFileBuffer, normalizeForSearch, fixMojibake } from '../utils/fileImportUtils';
+import { downloadTeacherSpreadsheetExcel, downloadTeacherSpreadsheetCSV } from '../utils/teacherSpreadsheetGenerator';
 
 interface BatchImportModalProps {
   isOpen: boolean;
@@ -14,11 +15,15 @@ interface BatchImportModalProps {
   onImportStudents: (students: Student[], mode: 'append' | 'replace') => void;
   existingStudents?: Student[];
   existingCount: number;
+  classroom?: Classroom;
+  institution?: Institution;
+  onOpenTeacherSpreadsheetModal?: () => void;
 }
 
 type TargetField = 
   | 'none'
   | 'name'
+  | 'nickname'
   | 'rollNumber'
   | 'gender'
   | 'behavior'
@@ -27,8 +32,14 @@ type TargetField =
   | 'hearingNeeds'
   | 'reducedMobility'
   | 'specialNeeds'
+  | 'specialNeedsNotes'
+  | 'preferredRow'
   | 'affinities'
+  | 'affinityPriority'
+  | 'affinityCategory'
   | 'antiAffinities'
+  | 'antiAffinitySeverity'
+  | 'antiAffinityCategory'
   | 'notes';
 
 interface ColumnMapping {
@@ -43,6 +54,10 @@ interface ParsedRow {
   student: Student;
   rawAffinitiesStr: string;
   rawAntiAffinitiesStr: string;
+  affinityPriorityStr: string;
+  affinityCategoryStr: string;
+  antiAffinitySeverityStr: string;
+  antiAffinityCategoryStr: string;
   isValid: boolean;
   validationMessages: string[];
   selected: boolean;
@@ -54,6 +69,9 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
   onImportStudents,
   existingStudents = [],
   existingCount,
+  classroom,
+  institution,
+  onOpenTeacherSpreadsheetModal,
 }) => {
   if (!isOpen) return null;
 
@@ -139,8 +157,11 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
   // Heuristic column target detection with accent-insensitive matching
   const detectFieldFromHeader = (header: string): TargetField => {
     const h = normalizeForSearch(header);
-    if (/^(nome|aluno|estudante|nome completo|name|student)$/.test(h) || h.includes('nome') || h.includes('aluno')) {
+    if (/^(nome|aluno|estudante|nome completo|name|student)$/.test(h) || h.includes('nome completo') || h.includes('nome do aluno')) {
       return 'name';
+    }
+    if (h.includes('apelido') || h.includes('social') || h.includes('nickname') || h.includes('chamado')) {
+      return 'nickname';
     }
     if (/^(numero|num|nº|chamada|roll|ordem|id)$/.test(h) || h.includes('chamada') || h.includes('numero')) {
       return 'rollNumber';
@@ -148,31 +169,51 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
     if (/^(genero|sexo|gender|sex)$/.test(h) || h.includes('genero') || h.includes('sexo')) {
       return 'gender';
     }
-    if (/^(comportamento|behavior|perfil|conduta)$/.test(h) || h.includes('comportamento')) {
+    if (/^(comportamento|behavior|perfil|conduta)$/.test(h) || h.includes('comportamento') || h.includes('perfil')) {
       return 'behavior';
     }
     if (/^(nivel|academico|desempenho|academic|nivel academico)$/.test(h) || h.includes('academico') || h.includes('desempenho')) {
       return 'academicLevel';
     }
-    if (/^(visao|visual|oculos|vision|miopia)$/.test(h) || h.includes('visao') || h.includes('oculo')) {
+    if (/^(visao|visual|oculos|vision|miopia)$/.test(h) || h.includes('visao') || h.includes('oculo') || h.includes('visual')) {
       return 'visionNeeds';
     }
-    if (/^(audicao|auditivo|hearing|aparelho auditivo)$/.test(h) || h.includes('audicao') || h.includes('ouvido')) {
+    if (/^(audicao|auditivo|hearing|aparelho auditivo)$/.test(h) || h.includes('audicao') || h.includes('ouvido') || h.includes('auditivo')) {
       return 'hearingNeeds';
     }
     if (/^(mobilidade|cadeirante|acessibilidade|mobility)$/.test(h) || h.includes('mobilidade') || h.includes('cadeir')) {
       return 'reducedMobility';
     }
-    if (/^(necessidades|inclusao|apoio|pcd|tdah|tea|special|laudo)$/.test(h) || h.includes('inclusao') || h.includes('especial')) {
+    if (h.includes('fileira') || h.includes('posicao') || h.includes('frente ou fundo') || h.includes('preferencia de fileira')) {
+      return 'preferredRow';
+    }
+    if (h.includes('detalhes') || h.includes('observacoes medicas') || h.includes('laudo / recomendacoes') || (h.includes('laudo') && h.includes('detalhes'))) {
+      return 'specialNeedsNotes';
+    }
+    if (/^(necessidades|inclusao|apoio|pcd|tdah|tea|special|laudo)$/.test(h) || h.includes('inclusao') || h.includes('especial') || h.includes('condicao')) {
       return 'specialNeeds';
     }
-    if (/^(afinidades|afinidade|amigos|amizades|juntos|aproximar|affinities)$/.test(h) || h.includes('afinidade') || h.includes('amigo')) {
-      return 'affinities';
+    // Proximity priority and category detection
+    if ((h.includes('prioridade') || h.includes('grau')) && (h.includes('parceria') || h.includes('afinidade') || h.includes('perto') || h.includes('proximidade'))) {
+      return 'affinityPriority';
     }
-    if (/^(desafinidades|desafinidade|afastar|separar|conflitos|anti)$/.test(h) || h.includes('desafin') || h.includes('afast') || h.includes('separ')) {
+    if (h.includes('motivo') && (h.includes('proximidade') || h.includes('afinidade') || h.includes('perto') || h.includes('parceria'))) {
+      return 'affinityCategory';
+    }
+    if ((h.includes('separacao') || h.includes('severidade') || h.includes('grau')) && (h.includes('distanciamento') || h.includes('desafinidade') || h.includes('separ') || h.includes('afast'))) {
+      return 'antiAffinitySeverity';
+    }
+    if (h.includes('motivo') && (h.includes('distanciamento') || h.includes('separ') || h.includes('desafin') || h.includes('afast'))) {
+      return 'antiAffinityCategory';
+    }
+    // Who can / cannot be near
+    if (h.includes('nao podem') || h.includes('nao pode') || h.includes('desafinidade') || h.includes('afastar') || h.includes('separar') || h.includes('conflito') || h.includes('distanciamento')) {
       return 'antiAffinities';
     }
-    if (/^(observacoes|obs|notas|comentarios|notes)$/.test(h) || h.includes('obs') || h.includes('nota')) {
+    if (h.includes('podem') || h.includes('pode') || h.includes('afinidade') || h.includes('amigo') || h.includes('juntos') || h.includes('parceria')) {
+      return 'affinities';
+    }
+    if (/^(observacoes|obs|notas|comentarios|notes)$/.test(h) || h.includes('obs') || h.includes('nota') || h.includes('comentario')) {
       return 'notes';
     }
     return 'none';
@@ -240,6 +281,7 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
       const rowData: Record<TargetField, string> = {
         none: '',
         name: '',
+        nickname: '',
         rollNumber: '',
         gender: '',
         behavior: '',
@@ -248,8 +290,14 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
         hearingNeeds: '',
         reducedMobility: '',
         specialNeeds: '',
+        specialNeedsNotes: '',
+        preferredRow: '',
         affinities: '',
+        affinityPriority: '',
+        affinityCategory: '',
         antiAffinities: '',
+        antiAffinitySeverity: '',
+        antiAffinityCategory: '',
         notes: '',
       };
 
@@ -306,28 +354,39 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
             if (!specialNeeds.includes('wheelchair_mobility')) specialNeeds.push('wheelchair_mobility');
           } else if (token.includes('alto') || token.includes('estat') || token.includes('tall')) {
             if (!specialNeeds.includes('tall_student')) specialNeeds.push('tall_student');
-          } else if (token.length > 0) {
+          } else if (token.length > 0 && !token.includes('nenhum')) {
             if (!specialNeeds.includes('custom')) specialNeeds.push('custom');
           }
         }
       }
 
+      // Preferred row
+      let preferredRow: Student['preferredRow'] = 'any';
+      const pStr = normalizeForSearch(rowData.preferredRow);
+      if (pStr.includes('frent') || pStr.includes('primeir')) {
+        preferredRow = 'front';
+      } else if (pStr.includes('fund') || pStr.includes('tras') || pStr.includes('ultim')) {
+        preferredRow = 'back';
+      } else if (pStr.includes('meio') || pStr.includes('centr')) {
+        preferredRow = 'middle';
+      }
+
       // Vision / Hearing / Mobility
       let visionNeeds: Student['visionNeeds'] = 'standard';
       const vStr = normalizeForSearch(rowData.visionNeeds);
-      if (vStr.includes('frente') || vStr.includes('sim') || vStr.includes('oculo') || vStr.includes('mio')) {
+      if (vStr.includes('frente') || vStr.includes('sim') || vStr.includes('oculo') || vStr.includes('mio') || specialNeeds.includes('low_vision')) {
         visionNeeds = 'needs_front';
       }
 
       let hearingNeeds: Student['hearingNeeds'] = 'standard';
       const hStr = normalizeForSearch(rowData.hearingNeeds);
-      if (hStr.includes('frente') || hStr.includes('sim') || hStr.includes('audit')) {
+      if (hStr.includes('frente') || hStr.includes('sim') || hStr.includes('audit') || specialNeeds.includes('hearing_impairment')) {
         hearingNeeds = 'needs_front';
       }
 
       let reducedMobility = false;
       const mStr = normalizeForSearch(rowData.reducedMobility);
-      if (mStr.includes('sim') || mStr.includes('cadeir') || mStr.includes('true')) {
+      if (mStr.includes('sim') || mStr.includes('cadeir') || mStr.includes('true') || specialNeeds.includes('wheelchair_mobility')) {
         reducedMobility = true;
       }
 
@@ -341,11 +400,13 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
         id: `std-csv-${Date.now()}-${rowIdx}-${Math.random().toString(36).substring(2, 6)}`,
         rollNumber: roll,
         name: cleanName || `Aluno Linha ${rowIdx + 1}`,
+        nickname: rowData.nickname?.trim() || undefined,
         gender,
         avatarColor: AVATAR_COLORS[rowIdx % AVATAR_COLORS.length],
         behavior,
         academicLevel,
         specialNeeds,
+        specialNeedsNotes: rowData.specialNeedsNotes?.trim() || undefined,
         visionNeeds,
         hearingNeeds,
         reducedMobility,
@@ -353,7 +414,7 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
         antiAffinities: [],
         affinityDetails: [],
         antiAffinityDetails: [],
-        preferredRow: 'any',
+        preferredRow,
         notes: rowData.notes || undefined,
       };
 
@@ -363,6 +424,10 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
         student: newStudent,
         rawAffinitiesStr: rowData.affinities || '',
         rawAntiAffinitiesStr: rowData.antiAffinities || '',
+        affinityPriorityStr: rowData.affinityPriority || '',
+        affinityCategoryStr: rowData.affinityCategory || '',
+        antiAffinitySeverityStr: rowData.antiAffinitySeverity || '',
+        antiAffinityCategoryStr: rowData.antiAffinityCategory || '',
         isValid,
         validationMessages,
         selected: isValid,
@@ -379,6 +444,30 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
       const affNames = row.rawAffinitiesStr.split(/[,;\/]/).map(s => normalizeForSearch(s)).filter(Boolean);
       const antiNames = row.rawAntiAffinitiesStr.split(/[,;\/]/).map(s => normalizeForSearch(s)).filter(Boolean);
 
+      // Determine level and category for affinities from teacher spreadsheet
+      let affLevel: CanBeNearLevel = 'high';
+      const apStr = normalizeForSearch(row.affinityPriorityStr);
+      if (apStr.includes('3') || apStr.includes('alta') || apStr.includes('essencial') || apStr.includes('max')) {
+        affLevel = 'high';
+      } else if (apStr.includes('1') || apStr.includes('baixa') || apStr.includes('leve')) {
+        affLevel = 'low';
+      } else if (apStr.includes('2') || apStr.includes('med')) {
+        affLevel = 'medium';
+      }
+      const affCategory = row.affinityCategoryStr || 'Apoio Pedagógico & Monitoria';
+
+      // Determine level and category for anti-affinities from teacher spreadsheet
+      let antiLevel: CannotBeNearLevel = 'critical';
+      const asStr = normalizeForSearch(row.antiAffinitySeverityStr);
+      if (asStr.includes('3') || asStr.includes('crit') || asStr.includes('obrig') || asStr.includes('sever')) {
+        antiLevel = 'critical';
+      } else if (asStr.includes('1') || asStr.includes('leve') || asStr.includes('afast') || asStr.includes('recom')) {
+        antiLevel = 'mild';
+      } else if (asStr.includes('2') || asStr.includes('med') || asStr.includes('evit')) {
+        antiLevel = 'moderate';
+      }
+      const antiCategory = row.antiAffinityCategoryStr || 'Conversa Excessiva / Dispersão';
+
       const resolvedAffIds: string[] = [];
       const resolvedAffDetails: StudentRelation[] = [];
 
@@ -393,8 +482,8 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
           resolvedAffIds.push(match.id);
           resolvedAffDetails.push({
             targetStudentId: match.id,
-            level: 'high',
-            category: 'Amizade Produtiva / Estudos',
+            level: affLevel,
+            category: affCategory,
           });
         }
       });
@@ -413,8 +502,8 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
           resolvedAntiIds.push(match.id);
           resolvedAntiDetails.push({
             targetStudentId: match.id,
-            level: 'critical',
-            category: 'Conversa Excessiva / Dispersão',
+            level: antiLevel,
+            category: antiCategory,
           });
         }
       });
@@ -429,47 +518,12 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
     setStep('preview');
   };
 
-  const handleDownloadTemplate = () => {
-    const headers = [
-      'Nome Completo',
-      'Numero',
-      'Genero',
-      'Comportamento',
-      'Nivel Academico',
-      'Visao',
-      'Audicao',
-      'Mobilidade Reduzida',
-      'Necessidades Especiais',
-      'Afinidades (Colegas recomendados)',
-      'Desafinidades (Evitar proximidade)',
-      'Observacoes'
-    ];
-
-    const sampleRow1 = [
-      'Alice Monteiro', '1', 'F', 'Calmo', 'Avançado', 'Normal', 'Normal', 'Não', 'Nenhuma', 'Bernardo Silva; Caio Fernandes', 'Gabriel Santos', 'Excelente em liderança e monitoria'
-    ];
-    const sampleRow2 = [
-      'Bernardo Silva', '2', 'M', 'Moderado', 'Regular', 'Frente', 'Normal', 'Não', 'TDAH', 'Alice Monteiro', 'Gabriel Santos', 'Necessita sentar na primeira ou segunda fileira'
-    ];
-    const sampleRow3 = [
-      'Gabriel Santos', '3', 'M', 'Conversador', 'Regular', 'Normal', 'Normal', 'Não', 'Nenhuma', '', 'Alice Monteiro; Bernardo Silva', 'Conversa facilmente em grupos grandes'
-    ];
-
-    const csvContent = '\uFEFF' + [
-      headers.join(';'),
-      sampleRow1.join(';'),
-      sampleRow2.join(';'),
-      sampleRow3.join(';'),
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'modelo_importacao_alunos_fleming.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownloadTemplate = (format: 'xlsx' | 'csv' = 'xlsx') => {
+    if (format === 'xlsx') {
+      downloadTeacherSpreadsheetExcel(classroom, institution);
+    } else {
+      downloadTeacherSpreadsheetCSV(classroom, institution);
+    }
   };
 
   const handleConfirmImport = () => {
@@ -552,24 +606,48 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
           {step === 'upload' && (
             <div className="space-y-5">
               
-              {/* File Drop & Template Actions */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-emerald-50/70 dark:bg-[#181822] p-4 rounded-2xl border border-emerald-200 dark:border-zinc-800">
-                <div>
-                  <h4 className="text-xs font-bold text-emerald-950 dark:text-zinc-100 uppercase tracking-wider">
-                    Planilha Modelo
-                  </h4>
-                  <p className="text-xs text-emerald-900/80 dark:text-zinc-400 mt-0.5">
-                    Baixe o modelo pré-formatado com cabeçalhos prontos para nomes, notas e afinidades.
-                  </p>
+              {/* Official Teacher Spreadsheet Banner */}
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-emerald-50/80 dark:bg-[#18231c] p-4 rounded-2xl border border-emerald-300/80 dark:border-emerald-800 shadow-xs">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-emerald-950 dark:text-emerald-200 uppercase tracking-wider">
+                        Planilha Oficial do Professor Regente
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-200/80 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-300 text-[10px] font-bold">
+                        Padrão Institucional
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-900/80 dark:text-zinc-300 mt-1">
+                      Modelo pré-formatado com 3 abas, cores institucionais, validações e colunas para proximidade e necessidades especiais.
+                    </p>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleDownloadTemplate}
-                  className="shrink-0 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
-                >
-                  <Download className="w-4 h-4" />
-                  Baixar Modelo .CSV
-                </button>
+
+                <div className="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
+                  {onOpenTeacherSpreadsheetModal && (
+                    <button
+                      type="button"
+                      onClick={onOpenTeacherSpreadsheetModal}
+                      className="px-3 py-2 bg-white hover:bg-slate-100 dark:bg-[#141419] dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-slate-300 dark:border-zinc-700 shadow-xs transition-all cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      Instruções da Planilha
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadTemplate('xlsx')}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    Baixar Modelo .XLSX
+                  </button>
+                </div>
               </div>
 
               {/* Upload Drop Zone */}
@@ -702,18 +780,35 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
                             }`}
                           >
                             <option value="none">-- Ignorar Coluna --</option>
-                            <option value="name">★ Nome Completo (Obrigatório)</option>
-                            <option value="rollNumber">Número de Chamada</option>
-                            <option value="gender">Gênero (M / F)</option>
-                            <option value="behavior">Comportamento (Calmo / Moderado / Conversador)</option>
-                            <option value="academicLevel">Nível Acadêmico (Regular / Avançado / Apoio)</option>
-                            <option value="visionNeeds">Necessidade de Visão (Frente)</option>
-                            <option value="hearingNeeds">Necessidade Auditiva (Frente)</option>
-                            <option value="reducedMobility">Mobilidade Reduzida (Cadeirante)</option>
-                            <option value="specialNeeds">Necessidades / Inclusão (TDAH, TEA, etc.)</option>
-                            <option value="affinities">Afinidades (Nomes de colegas recomendados)</option>
-                            <option value="antiAffinities">Desafinidades (Nomes de colegas a afastar)</option>
-                            <option value="notes">Observações Pedagógicas</option>
+                            <optgroup label="Dados Principais">
+                              <option value="name">★ Nome Completo (Obrigatório)</option>
+                              <option value="nickname">Apelido / Nome Social</option>
+                              <option value="rollNumber">Número de Chamada</option>
+                              <option value="gender">Gênero (M / F)</option>
+                              <option value="behavior">Comportamento (Calmo / Moderado / Conversador)</option>
+                              <option value="academicLevel">Nível Acadêmico (Regular / Avançado / Apoio)</option>
+                            </optgroup>
+                            <optgroup label="Inclusão e Acessibilidade">
+                              <option value="visionNeeds">Necessidade de Visão (Frente)</option>
+                              <option value="hearingNeeds">Necessidade Auditiva (Frente)</option>
+                              <option value="reducedMobility">Mobilidade Reduzida (Cadeirante)</option>
+                              <option value="specialNeeds">Necessidades / Inclusão (TDAH, TEA, etc.)</option>
+                              <option value="specialNeedsNotes">Detalhes do Laudo / Observações Médicas</option>
+                              <option value="preferredRow">Preferência de Fileira (Frente / Meio / Fundo)</option>
+                            </optgroup>
+                            <optgroup label="Mapeamento de Proximidade (Afinidades)">
+                              <option value="affinities">Afinidades (Colegas recomendados juntos)</option>
+                              <option value="affinityPriority">Nível Prioridade da Parceria (+3, +2, +1)</option>
+                              <option value="affinityCategory">Motivo da Proximidade / Parceria</option>
+                            </optgroup>
+                            <optgroup label="Mapeamento de Distanciamento (Desafinidades)">
+                              <option value="antiAffinities">Desafinidades (Colegas a afastar)</option>
+                              <option value="antiAffinitySeverity">Nível de Separação (-3, -2, -1)</option>
+                              <option value="antiAffinityCategory">Motivo do Distanciamento</option>
+                            </optgroup>
+                            <optgroup label="Outros">
+                              <option value="notes">Observações Pedagógicas</option>
+                            </optgroup>
                           </select>
                         </td>
 

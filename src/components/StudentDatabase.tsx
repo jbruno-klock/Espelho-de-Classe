@@ -16,7 +16,8 @@ import {
   Filter,
   UserCheck,
   UserX,
-  X
+  X,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Student, Classroom } from '../types';
 
@@ -26,6 +27,7 @@ interface StudentDatabaseProps {
   onOpenEditStudentModal: (student: Student) => void;
   onDeleteStudent: (studentId: string) => void;
   onOpenBatchImportModal: () => void;
+  onOpenTeacherSpreadsheetModal?: () => void;
 }
 
 export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
@@ -34,6 +36,7 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
   onOpenEditStudentModal,
   onDeleteStudent,
   onOpenBatchImportModal,
+  onOpenTeacherSpreadsheetModal,
 }) => {
   const [search, setSearch] = useState('');
   const [filterBehavior, setFilterBehavior] = useState<string>('all');
@@ -74,6 +77,17 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
+          {onOpenTeacherSpreadsheetModal && (
+            <button
+              onClick={onOpenTeacherSpreadsheetModal}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 text-xs font-bold rounded-xl transition-all cursor-pointer border border-emerald-300 dark:border-emerald-800 shadow-xs"
+              title="Baixar planilha modelo formatada para preenchimento pelo professor regente"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Planilha do Professor (.xlsx)
+            </button>
+          )}
+
           <button
             onClick={onOpenBatchImportModal}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-[#18181f] dark:hover:bg-[#202028] text-slate-800 dark:text-zinc-200 text-xs font-bold rounded-xl transition-all cursor-pointer border border-slate-300 dark:border-zinc-800 shadow-xs"
@@ -148,7 +162,16 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
               ? 'Esta turma ainda não tem alunos cadastrados. Adicione individualmente ou importe a lista de chamada via planilha.'
               : 'Nenhum aluno corresponde aos filtros selecionados.'}
           </p>
-          <div className="mt-4 flex items-center justify-center gap-2">
+          <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+            {onOpenTeacherSpreadsheetModal && (
+              <button
+                onClick={onOpenTeacherSpreadsheetModal}
+                className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                Planilha do Professor (.xlsx)
+              </button>
+            )}
             <button
               onClick={onOpenAddStudentModal}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
