@@ -9,7 +9,9 @@ import {
   Loader2,
   Hash,
   Printer,
-  Bookmark
+  Bookmark,
+  GraduationCap,
+  Eye
 } from 'lucide-react';
 import { Classroom, Institution, Student } from '../types';
 import { exportToPdf } from '../utils/exportUtils';
@@ -35,6 +37,7 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [exportFeedback, setExportFeedback] = useState<string | null>(null);
   const [showRollNumbers, setShowRollNumbers] = useState<boolean>(true);
+  const [viewPerspective, setViewPerspective] = useState<'student' | 'teacher'>('student');
 
   const { plans, activePlan } = ensureClassroomPlans(classroom);
 
@@ -47,9 +50,17 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
     try {
       const sanitizedClassName = classroom.name.replace(/[\s/]+/g, '_');
       const sanitizedPlanName = (activePlan?.name || 'Oficial').replace(/[\s/]+/g, '_');
-      const fileName = `espelho_${sanitizedClassName}_${sanitizedPlanName}_${classroom.academicYear}`;
-      await exportToPdf('printable-document-content', fileName, classroom, institution, { showRollNumber: showRollNumbers });
-      setExportFeedback('PDF gerado e baixado com sucesso!');
+      const perspectiveSlug = viewPerspective === 'teacher' ? '_vista_professor' : '_vista_padrao';
+      const fileName = `espelho_${sanitizedClassName}_${sanitizedPlanName}${perspectiveSlug}_${classroom.academicYear}`;
+      await exportToPdf('printable-document-content', fileName, classroom, institution, { 
+        showRollNumber: showRollNumbers,
+        viewPerspective 
+      });
+      setExportFeedback(
+        viewPerspective === 'teacher'
+          ? 'PDF em Vista do Professor gerado e baixado com sucesso!'
+          : 'PDF gerado e baixado com sucesso!'
+      );
       setTimeout(() => setExportFeedback(null), 4000);
     } catch (err: any) {
       console.error('Error generating PDF:', err);
@@ -116,6 +127,32 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
             </div>
           )}
 
+          {/* Botão Vista Professor / Vista Padrão */}
+          <button
+            type="button"
+            id="toggle-teacher-view-btn"
+            onClick={() => setViewPerspective(prev => prev === 'teacher' ? 'student' : 'teacher')}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-xs ${
+              viewPerspective === 'teacher' 
+                ? 'bg-blue-50 hover:bg-blue-100/80 dark:bg-blue-950/40 dark:hover:bg-blue-950/60 text-blue-900 dark:text-blue-300 border-blue-300 dark:border-blue-700/60 ring-2 ring-blue-500/20' 
+                : 'bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 border-slate-300 dark:border-zinc-700/60'
+            }`}
+            title={viewPerspective === 'teacher' 
+              ? "Clique para alternar para a Vista Padrão (Quadro na parte superior)" 
+              : "Clique para ativar a Vista Professor (Quadro na parte de baixo da página, carteiras na perspectiva de quem está em frente aos alunos)"}
+            aria-pressed={viewPerspective === 'teacher'}
+          >
+            <GraduationCap className={`w-4 h-4 ${viewPerspective === 'teacher' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`} />
+            <span>Vista Professor:</span>
+            <span className={`px-2 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wider ${
+              viewPerspective === 'teacher' 
+                ? 'bg-blue-200/90 dark:bg-blue-900/80 text-blue-950 dark:text-blue-100' 
+                : 'bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-400'
+            }`}>
+              {viewPerspective === 'teacher' ? 'Ativada' : 'Desativada'}
+            </span>
+          </button>
+
           {/* Botão para Ativar/Desativar Número da Chamada */}
           <button
             type="button"
@@ -181,6 +218,29 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
         </div>
       </div>
 
+      {viewPerspective === 'teacher' && (
+        <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/40 text-blue-900 dark:text-blue-200 p-3.5 rounded-2xl text-xs flex items-center justify-between gap-3 no-print shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-xl bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0">
+              <GraduationCap className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold">Vista Professor Ativada</p>
+              <p className="text-[11px] text-blue-700 dark:text-blue-300/80">
+                O quadro negro e a mesa do professor estão na parte de baixo da página. As carteiras acompanham a perspectiva de quem está ministrando aula de frente para a turma.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setViewPerspective('student')}
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-zinc-700 border border-blue-200 dark:border-blue-700 text-xs font-bold transition-colors cursor-pointer shrink-0"
+          >
+            Voltar à Vista Padrão
+          </button>
+        </div>
+      )}
+
       {exportFeedback && (
         <div className={`p-3 rounded-2xl text-xs font-medium flex items-center gap-2 no-print ${
           exportFeedback.includes('sucesso') 
@@ -217,6 +277,17 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                 {activePlan.isDefault && (
                   <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-300 ml-1">
                     OFICIAL
+                  </span>
+                )}
+                {viewPerspective === 'teacher' ? (
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300 ml-1 inline-flex items-center gap-1">
+                    <GraduationCap className="w-3.5 h-3.5 text-blue-700" />
+                    VISTA DO PROFESSOR (QUADRO NA BASE)
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 ml-1 inline-flex items-center gap-1">
+                    <Eye className="w-3 h-3 text-slate-500" />
+                    VISTA PADRÃO (ENTRADA DA SALA)
                   </span>
                 )}
               </h2>
@@ -286,27 +357,36 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
         {/* 2. ESPAÇO DA SALA: Tons Institucionais Suaves */}
         <div className="border border-slate-200 rounded-2xl p-6 mb-6 bg-slate-50/40">
           
-          {/* Quadro Negro em tom institucional suave e sofisticado */}
-          <div 
-            id="blackboard-banner"
-            className="blackboard-banner bg-slate-700 text-slate-100 py-2 px-4 rounded-xl text-center font-bold text-xs uppercase tracking-widest mb-6 flex items-center justify-center gap-2 border border-slate-600 shadow-xs"
-            style={{ backgroundColor: '#334155', color: '#f8fafc' }}
-          >
-            <span className="text-slate-100 font-bold tracking-wider" style={{ color: '#f8fafc !important' }}>
-              QUADRO NEGRO / LOUSA (FRENTE DA SALA)
-            </span>
-          </div>
-
-          {/* Mesa do Professor em tom institucional suave */}
-          {teacherDeskPosition !== 'none' && (
-            <div className={`flex mb-5 px-1 ${
-              teacherDeskPosition === 'front_left' ? 'justify-start' : teacherDeskPosition === 'front_right' ? 'justify-end' : 'justify-center'
-            }`}>
-              <div className="border border-slate-300 bg-slate-100/90 text-slate-700 px-4 py-1.5 rounded-lg text-xs font-bold shadow-2xs flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-slate-400" />
-                Mesa do Professor
-              </div>
+          {/* Se Vista Professor: O FUNDO DA SALA fica no TOPO */}
+          {viewPerspective === 'teacher' ? (
+            <div className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 pb-2.5 border-b border-slate-200/80 flex items-center justify-center gap-1.5">
+              <span>▲ FUNDO DA SALA DE AULA (ÚLTIMAS FILEIRAS)</span>
             </div>
+          ) : (
+            <>
+              {/* Quadro Negro em tom institucional suave e sofisticado no TOPO (Vista Padrão) */}
+              <div 
+                id="blackboard-banner"
+                className="blackboard-banner bg-slate-700 text-slate-100 py-2 px-4 rounded-xl text-center font-bold text-xs uppercase tracking-widest mb-5 flex items-center justify-center gap-2 border border-slate-600 shadow-xs"
+                style={{ backgroundColor: '#334155', color: '#f8fafc' }}
+              >
+                <span className="text-slate-100 font-bold tracking-wider" style={{ color: '#f8fafc !important' }}>
+                  QUADRO NEGRO / LOUSA (FRENTE DA SALA)
+                </span>
+              </div>
+
+              {/* Mesa do Professor em tom institucional suave no TOPO (Vista Padrão) */}
+              {teacherDeskPosition !== 'none' && (
+                <div className={`flex mb-5 px-1 ${
+                  teacherDeskPosition === 'front_left' ? 'justify-start' : teacherDeskPosition === 'front_right' ? 'justify-end' : 'justify-center'
+                }`}>
+                  <div className="border border-slate-300 bg-slate-100/90 text-slate-700 px-4 py-1.5 rounded-lg text-xs font-bold shadow-2xs flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-slate-400" />
+                    Mesa do Professor
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* 3. LAYOUT DAS MESAS: Minimalista Premium */}
@@ -316,8 +396,10 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
               gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
             }}
           >
-            {Array.from({ length: rows }).map((_, r) =>
-              Array.from({ length: cols }).map((_, c) => {
+            {Array.from({ length: rows }).map((_, rIdx) =>
+              Array.from({ length: cols }).map((_, cIdx) => {
+                const r = viewPerspective === 'teacher' ? rows - 1 - rIdx : rIdx;
+                const c = viewPerspective === 'teacher' ? cols - 1 - cIdx : cIdx;
                 const deskId = `r${r}_c${c}`;
                 const isActive = activeDesks[deskId] !== false;
                 const isCompact = cols >= 12 || rows >= 12;
@@ -390,10 +472,42 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
             )}
           </div>
 
-          {/* Fundo da Sala */}
-          <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-6 pt-3 border-t border-slate-200/80">
-            FUNDO DA SALA DE AULA
-          </div>
+          {/* Se Vista Professor: O QUADRO NEGRO e a MESA DO PROFESSOR ficam na BASE */}
+          {viewPerspective === 'teacher' ? (
+            <>
+              {/* Mesa do Professor na BASE (orientação horizontal invertida para acompanhar visão de frente) */}
+              {teacherDeskPosition !== 'none' && (
+                <div className={`flex mt-5 mb-2.5 px-1 ${
+                  teacherDeskPosition === 'front_left' ? 'justify-end' : teacherDeskPosition === 'front_right' ? 'justify-start' : 'justify-center'
+                }`}>
+                  <div className="border border-slate-300 bg-slate-100/90 text-slate-700 px-4 py-1.5 rounded-lg text-xs font-bold shadow-2xs flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-500" />
+                    Mesa do Professor
+                  </div>
+                </div>
+              )}
+
+              {/* Quadro Negro / Lousa na PARTE DE BAIXO */}
+              <div 
+                id="blackboard-banner"
+                className="blackboard-banner bg-slate-700 text-slate-100 py-2.5 px-4 rounded-xl text-center font-bold text-xs uppercase tracking-widest mt-3 flex items-center justify-center gap-2 border border-slate-600 shadow-xs"
+                style={{ backgroundColor: '#334155', color: '#f8fafc' }}
+              >
+                <span className="text-slate-100 font-bold tracking-wider" style={{ color: '#f8fafc !important' }}>
+                  ▼ QUADRO NEGRO / LOUSA (POSIÇÃO DO PROFESSOR • FRENTE DA SALA)
+                </span>
+              </div>
+
+              <p className="text-[10px] text-center text-slate-500 font-medium mt-2">
+                Vista do Professor: carteiras organizadas de acordo com a perspectiva de quem ministra aula de frente para a turma
+              </p>
+            </>
+          ) : (
+            /* Fundo da Sala na BASE (Vista Padrão) */
+            <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-6 pt-3 border-t border-slate-200/80">
+              FUNDO DA SALA DE AULA
+            </div>
+          )}
         </div>
 
         {/* Rodapé institucional com linha de assinatura */}

@@ -84,6 +84,7 @@ function safeLatinText(text: string): string {
 
 export interface PdfExportOptions {
   showRollNumber?: boolean;
+  viewPerspective?: 'student' | 'teacher';
 }
 
 /**
@@ -377,50 +378,64 @@ function generateNativeVectorPDF(
   curY += 2.5;
   pdf.line(marginX, curY, marginX + usableWidth, curY);
 
+  const isTeacherView = options?.viewPerspective === 'teacher';
+
   // --- 2. ESPAÇO DA SALA COM TONS INSTITUCIONAIS SUAVES ---
-  curY += 4;
-  pdf.setFillColor(51, 65, 85); // slate-700 (tom institucional suave)
-  pdf.roundedRect(marginX, curY, usableWidth, 5.5, 1, 1, 'F');
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(7.5);
-  pdf.setTextColor(248, 250, 252); // slate-50
-  pdf.text('QUADRO NEGRO / LOUSA (FRENTE DA SALA)', marginX + (usableWidth / 2), curY + 3.8, { align: 'center' });
+  curY += 3;
 
-  curY += 7.5;
-
-  // Teacher desk if present (soft institutional)
-  if (teacherDeskPosition && teacherDeskPosition !== 'none') {
-    const tWidth = 44;
-    const tHeight = 5;
-    let tX = marginX + (usableWidth / 2) - (tWidth / 2);
-    if (teacherDeskPosition === 'front_left') tX = marginX + 2;
-    if (teacherDeskPosition === 'front_right') tX = marginX + usableWidth - tWidth - 2;
-
-    pdf.setFillColor(241, 245, 249); // slate-100
-    pdf.setDrawColor(203, 213, 225); // slate-300
-    pdf.setLineWidth(0.2);
-    pdf.roundedRect(tX, curY, tWidth, tHeight, 1, 1, 'FD');
+  if (isTeacherView) {
+    // Na Vista Professor, o FUNDO DA SALA fica no topo da folha
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(7);
-    pdf.setTextColor(51, 65, 85);
-    pdf.text(`Mesa do Professor`, tX + (tWidth / 2), curY + 3.4, { align: 'center' });
+    pdf.setFontSize(6.5);
+    pdf.setTextColor(148, 163, 184);
+    pdf.text('FUNDO DA SALA DE AULA (ULTIMAS FILEIRAS)', marginX + (usableWidth / 2), curY + 2.5, { align: 'center' });
+    curY += 5;
+  } else {
+    // Na Vista Padrão, o QUADRO NEGRO fica no topo
+    pdf.setFillColor(51, 65, 85); // slate-700
+    pdf.roundedRect(marginX, curY, usableWidth, 5.5, 1, 1, 'F');
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(248, 250, 252); // slate-50
+    pdf.text('QUADRO NEGRO / LOUSA (FRENTE DA SALA)', marginX + (usableWidth / 2), curY + 3.8, { align: 'center' });
+    curY += 7.5;
 
-    curY += 7;
+    // Teacher desk if present (soft institutional)
+    if (teacherDeskPosition && teacherDeskPosition !== 'none') {
+      const tWidth = 44;
+      const tHeight = 5;
+      let tX = marginX + (usableWidth / 2) - (tWidth / 2);
+      if (teacherDeskPosition === 'front_left') tX = marginX + 2;
+      if (teacherDeskPosition === 'front_right') tX = marginX + usableWidth - tWidth - 2;
+
+      pdf.setFillColor(241, 245, 249); // slate-100
+      pdf.setDrawColor(203, 213, 225); // slate-300
+      pdf.setLineWidth(0.2);
+      pdf.roundedRect(tX, curY, tWidth, tHeight, 1, 1, 'FD');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7);
+      pdf.setTextColor(51, 65, 85);
+      pdf.text(`Mesa do Professor`, tX + (tWidth / 2), curY + 3.4, { align: 'center' });
+
+      curY += 7;
+    }
   }
 
   // --- 3. LAYOUT DAS MESAS: MINIMALISTA PREMIUM ---
-  const gridAvailableHeight = pageHeight - curY - 20; // space for bottom wall & footer
+  const gridAvailableHeight = pageHeight - curY - 24; // space for bottom elements & footer
   const gap = cols >= 12 ? 1.2 : cols >= 8 ? 1.8 : 2.5;
   const deskWidth = (usableWidth - (gap * (cols - 1))) / cols;
   const deskHeight = Math.min(18, (gridAvailableHeight - (gap * (rows - 1))) / rows);
   const isCompact = deskWidth < 22 || deskHeight < 11;
 
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
+  for (let rIdx = 0; rIdx < rows; rIdx++) {
+    for (let cIdx = 0; cIdx < cols; cIdx++) {
+      const r = isTeacherView ? (rows - 1 - rIdx) : rIdx;
+      const c = isTeacherView ? (cols - 1 - cIdx) : cIdx;
       const deskId = `r${r}_c${c}`;
       const isActive = activeDesks[deskId] !== false;
-      const dX = marginX + (c * (deskWidth + gap));
-      const dY = curY + (r * (deskHeight + gap));
+      const dX = marginX + (cIdx * (deskWidth + gap));
+      const dY = curY + (rIdx * (deskHeight + gap));
 
       // CORREDORES: Ocultos (apenas espaçamento invisível)
       if (!isActive) {
@@ -495,12 +510,43 @@ function generateNativeVectorPDF(
     }
   }
 
-  // --- FUNDO DA SALA ---
-  const gridBottomY = curY + (rows * (deskHeight + gap));
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(6.5);
-  pdf.setTextColor(148, 163, 184);
-  pdf.text('FUNDO DA SALA DE AULA', marginX + (usableWidth / 2), gridBottomY + 3.5, { align: 'center' });
+  curY += (rows * (deskHeight + gap));
+
+  if (isTeacherView) {
+    curY += 2;
+    // Mesa do professor na base (se houver, com orientação invertida em relação ao observador)
+    if (teacherDeskPosition && teacherDeskPosition !== 'none') {
+      const tWidth = 44;
+      const tHeight = 5;
+      let tX = marginX + (usableWidth / 2) - (tWidth / 2);
+      if (teacherDeskPosition === 'front_left') tX = marginX + usableWidth - tWidth - 2;
+      if (teacherDeskPosition === 'front_right') tX = marginX + 2;
+
+      pdf.setFillColor(241, 245, 249); // slate-100
+      pdf.setDrawColor(203, 213, 225); // slate-300
+      pdf.setLineWidth(0.2);
+      pdf.roundedRect(tX, curY, tWidth, tHeight, 1, 1, 'FD');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7);
+      pdf.setTextColor(51, 65, 85);
+      pdf.text(`Mesa do Professor`, tX + (tWidth / 2), curY + 3.4, { align: 'center' });
+      curY += 6.5;
+    }
+
+    // QUADRO NEGRO / LOUSA NA PARTE DE BAIXO
+    pdf.setFillColor(51, 65, 85); // slate-700
+    pdf.roundedRect(marginX, curY, usableWidth, 5.5, 1, 1, 'F');
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(248, 250, 252);
+    pdf.text('QUADRO NEGRO / LOUSA (POSICAO DO PROFESSOR - FRENTE DA SALA)', marginX + (usableWidth / 2), curY + 3.8, { align: 'center' });
+  } else {
+    // --- FUNDO DA SALA ---
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(6.5);
+    pdf.setTextColor(148, 163, 184);
+    pdf.text('FUNDO DA SALA DE AULA', marginX + (usableWidth / 2), curY + 3.5, { align: 'center' });
+  }
 
   // --- RODAPÉ INSTITUCIONAL ---
   const footerY = pageHeight - 8;
