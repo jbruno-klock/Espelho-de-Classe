@@ -169,6 +169,21 @@ export interface GenerationOptions {
   respectFixedDesks: boolean;
 }
 
+export interface ConflictSuggestion {
+  id: string;
+  conflictId: string;
+  type: 'swap' | 'move_to_empty';
+  title: string;
+  explanation: string;
+  sourceDeskId: string; // Carteira de origem do aluno envolvido
+  sourceStudentName: string;
+  targetDeskId: string; // Carteira recomendada para a troca/realocação
+  targetStudentName?: string; // Nome do colega na carteira recomendada (se ocupada) ou 'Carteira Vazia'
+  targetStudentId?: string;
+  expectedScoreImprovement: number; // Incremento percentual estimado (ex: +12%)
+  impact: 'resolves_completely' | 'significantly_improves' | 'mitigates';
+}
+
 export interface ConflictDiagnostic {
   id: string;
   type: 'anti_affinity' | 'two_talkative' | 'front_need_violated' | 'back_need_violated' | 'door_distraction';
@@ -183,6 +198,7 @@ export interface ConflictDiagnostic {
   distance?: number;
   category?: string;
   level?: string;
+  suggestions?: ConflictSuggestion[];
 }
 
 export interface GenerationReport {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Lock, 
   Unlock, 
@@ -11,34 +11,40 @@ import {
   Heart, 
   AlertTriangle, 
   User, 
-  Users,
-  Users2,
+  Users, 
+  Users2, 
   Presentation, 
   DoorOpen, 
-  Sparkles,
-  Layers,
-  Info,
-  UserCheck,
-  UserX
+  Sparkles, 
+  Layers, 
+  Info, 
+  UserCheck, 
+  UserX,
+  Lightbulb,
+  ArrowRightLeft
 } from 'lucide-react';
-import { Classroom, Student, RoomConfig } from '../types';
+import { Classroom, Student, RoomConfig, ConflictDiagnostic, ConflictSuggestion } from '../types';
 
 interface SeatingGridProps {
   classroom: Classroom;
+  conflicts?: ConflictDiagnostic[];
   onSwapDesks: (deskId1: string, deskId2: string) => void;
   onAssignStudentToDesk: (studentId: string, deskId: string) => void;
   onRemoveStudentFromDesk: (deskId: string) => void;
   onToggleLockDesk: (deskId: string) => void;
   onSelectStudent: (student: Student) => void;
+  onOpenConflictModal?: () => void;
 }
 
 export const SeatingGrid: React.FC<SeatingGridProps> = ({
   classroom,
+  conflicts = [],
   onSwapDesks,
   onAssignStudentToDesk,
   onRemoveStudentFromDesk,
   onToggleLockDesk,
   onSelectStudent,
+  onOpenConflictModal,
 }) => {
   const [selectedDeskId, setSelectedDeskId] = useState<string | null>(null);
   const [draggedStudentId, setDraggedStudentId] = useState<string | null>(null);
@@ -50,11 +56,53 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
   const lockedDesks = classroom.lockedDesks || {};
 
   // Build lookup maps
-  const studentMap = new Map<string, Student>();
-  classroom.students.forEach(s => studentMap.set(s.id, s));
+  const studentMap = useMemo(() => {
+    const map = new Map<string, Student>();
+    classroom.students.forEach(s => map.set(s.id, s));
+    return map;
+  }, [classroom.students]);
+
+  // Fast map of conflicts associated with each deskId
+  const deskConflictMap = useMemo(() => {
+    const map = new Map<string, ConflictDiagnostic[]>();
+    conflicts.forEach(c => {
+      if (c.desk1Id) {
+        const list = map.get(c.desk1Id) || [];
+        list.push(c);
+        map.set(c.desk1Id, list);
+      }
+      if (c.desk2Id) {
+        const list = map.get(c.desk2Id) || [];
+        list.push(c);
+        map.set(c.desk2Id, list);
+      }
+    });
+    return map;
+  }, [conflicts]);
+
+  // Selected desk conflict & suggestions
+  const selectedDeskConflicts = selectedDeskId ? deskConflictMap.get(selectedDeskId) || [] : [];
+  const primarySelectedConflict = selectedDeskConflicts[0] || null;
+  const topSelectedSuggestion = primarySelectedConflict?.suggestions?.[0] || null;
+
+  // Map of suggested target desks for the currently selected desk
+  const suggestedTargetDeskMap = useMemo(() => {
+    const map = new Map<string, ConflictSuggestion>();
+    if (!selectedDeskId) return map;
+    selectedDeskConflicts.forEach(c => {
+      c.suggestions?.forEach(s => {
+        if (!map.has(s.targetDeskId)) {
+          map.set(s.targetDeskId, s);
+        }
+      });
+    });
+    return map;
+  }, [selectedDeskId, selectedDeskConflicts]);
 
   // Find unassigned students
-  const assignedStudentIds = new Set(Object.values(seatingMap).filter(Boolean) as string[]);
+  const assignedStudentIds = useMemo(() => {
+    return new Set(Object.values(seatingMap).filter(Boolean) as string[]);
+  }, [seatingMap]);
   const unassignedStudents = classroom.students.filter(s => !assignedStudentIds.has(s.id));
 
   // Active student for relationship highlight (either selected or hovered)
@@ -110,13 +158,19 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
   const isVeryHighDensity = cols >= 8;
   const isUltraDensity = cols >= 11;
 
+  const getDeskCoordinates = (deskId: string) => {
+    const match = deskId.match(/r(\d+)_c(\d+)/);
+    if (!match) return deskId;
+    return `Fila ${parseInt(match[1]) + 1} • Coluna ${parseInt(match[2]) + 1}`;
+  };
+
   return (
     <div className="space-y-4 w-full">
       
-      {/* Classroom Container */}
-      <div className="w-full bg-white dark:bg-[#121216] rounded-3xl p-3 sm:p-5 md:p-6 border border-slate-200 dark:border-zinc-800/80 shadow-sm relative overflow-hidden flex flex-col items-center transition-colors">
+      {/* Interactive Seating Canvas Card */}
+      <div className="bg-white dark:bg-[#121216] rounded-3xl p-4 sm:p-6 border border-slate-200 dark:border-zinc-800/80 shadow-xs transition-colors">
         
-        {/* Top Header: Blackboard / Quadro & Room Boundaries */}
+        {/* Top Front Indicator (Blackboard & Teacher Desk) */}
         <div className="w-full flex flex-col items-center mb-4">
           
           {/* Windows / Door Top Indicators if configured */}
@@ -167,6 +221,89 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
           )}
         </div>
 
+        {/* Dynamic Conflict & Suggestion Alert Banner right above the grid */}
+        {selectedDeskId && primarySelectedConflict ? (
+          <div className="w-full mb-3.5 p-3.5 bg-rose-50/90 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-900/60 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in duration-150">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="p-2 rounded-xl bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400 shrink-0 mt-0.5 shadow-2xs">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-rose-900 dark:text-rose-300">
+                    Conflito em {getDeskCoordinates(selectedDeskId)}
+                  </span>
+                  <span className="text-[10px] bg-rose-200/80 dark:bg-rose-900/60 text-rose-900 dark:text-rose-300 px-2 py-0.5 rounded-full font-bold">
+                    {primarySelectedConflict.category || 'Atenção'}
+                  </span>
+                </div>
+                <p className="text-slate-800 dark:text-zinc-200 mt-1 font-medium leading-snug">
+                  {primarySelectedConflict.description}
+                </p>
+                {topSelectedSuggestion && (
+                  <p className="text-indigo-800 dark:text-indigo-300 font-semibold mt-1.5 flex items-center gap-1.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1 text-indigo-700 dark:text-indigo-400">
+                      <Lightbulb className="w-3.5 h-3.5" />
+                      Sugestão de Troca:
+                    </span>
+                    <span>{topSelectedSuggestion.title}</span>
+                    <span className="text-emerald-700 dark:text-emerald-400 font-bold text-[10px]">
+                      (+{topSelectedSuggestion.expectedScoreImprovement}% harmonia)
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+              {topSelectedSuggestion && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSwapDesks(topSelectedSuggestion.sourceDeskId, topSelectedSuggestion.targetDeskId);
+                    setSelectedDeskId(null);
+                  }}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5" />
+                  <span>Aplicar Sugestão</span>
+                </button>
+              )}
+              {onOpenConflictModal && (
+                <button
+                  type="button"
+                  onClick={onOpenConflictModal}
+                  className="px-3.5 py-1.5 bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 rounded-xl text-xs font-bold border border-slate-300 dark:border-zinc-700 transition-colors cursor-pointer"
+                >
+                  Ver Todas
+                </button>
+              )}
+            </div>
+          </div>
+        ) : conflicts.length > 0 ? (
+          <div className="w-full mb-3.5 p-3 bg-amber-50/80 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-800/60 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs shadow-xs">
+            <div className="flex items-center gap-2.5 text-amber-900 dark:text-amber-300">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="font-bold">
+                {conflicts.length} {conflicts.length === 1 ? 'conflito gerado no mapa' : 'conflitos gerados no mapa'}.
+              </span>
+              <span className="text-slate-600 dark:text-zinc-400 hidden sm:inline">
+                Clique nas carteiras com aviso para ver sugestões de troca ou abra o diagnóstico completo.
+              </span>
+            </div>
+            {onOpenConflictModal && (
+              <button
+                type="button"
+                onClick={onOpenConflictModal}
+                className="flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 ml-auto sm:ml-0"
+              >
+                <Lightbulb className="w-3.5 h-3.5" />
+                <span>Ver Sugestões de Correção</span>
+              </button>
+            )}
+          </div>
+        ) : null}
+
         {/* Desks Grid - Framed with smooth scroll on high column count if screen is narrow */}
         <div className="w-full flex justify-center overflow-x-auto pb-2">
           <div
@@ -208,11 +345,31 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                 const isLocked = lockedDesks[deskId];
                 const isSelected = selectedDeskId === deskId;
 
+                // Conflicts on this desk
+                const thisDeskConflicts = deskConflictMap.get(deskId) || [];
+                const hasConflict = thisDeskConflicts.length > 0;
+                const hasCriticalConflict = thisDeskConflicts.some(conf => conf.severity === 'critical');
+
+                // Is this desk a suggested swap target for the currently selected conflicted desk?
+                const targetSuggestion = suggestedTargetDeskMap.get(deskId);
+
                 // Proximity highlights (Pode ficar perto vs NÃO pode ficar perto)
                 let highlightClass = '';
                 let highlightBadge = null;
 
-                if (highlightStudent && student && student.id !== highlightStudent.id) {
+                if (targetSuggestion) {
+                  // This desk is a recommended correction destination!
+                  highlightClass = 'ring-3 ring-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/70 border-emerald-500 shadow-md animate-pulse z-20';
+                  highlightBadge = (
+                    <span 
+                      className="absolute -top-2 -right-2 bg-emerald-600 text-white rounded-full px-1.5 py-0.5 shadow-md text-[8px] sm:text-[9px] font-extrabold flex items-center gap-1 z-30 pointer-events-none"
+                      title={`Sugestão de troca recomendada: ${targetSuggestion.title}`}
+                    >
+                      <Sparkles className="w-2.5 h-2.5" />
+                      <span>+{targetSuggestion.expectedScoreImprovement}%</span>
+                    </span>
+                  );
+                } else if (highlightStudent && student && student.id !== highlightStudent.id) {
                   const isAffinity = highlightStudent.affinities.includes(student.id) || student.affinities.includes(highlightStudent.id);
                   const isAnti = highlightStudent.antiAffinities.includes(student.id) || student.antiAffinities.includes(highlightStudent.id);
 
@@ -232,6 +389,23 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                     );
                   }
                 }
+
+                // Conflict warning badge on top-left of the desk
+                const conflictBadge = hasConflict && !targetSuggestion ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedDeskId(deskId);
+                    }}
+                    className={`absolute -top-1.5 -left-1.5 ${
+                      hasCriticalConflict ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'
+                    } text-white rounded-full p-0.5 shadow-md text-[8px] font-bold flex items-center justify-center z-20 cursor-pointer transition-transform hover:scale-125`}
+                    title={`Ponto de Atenção: ${thisDeskConflicts[0].description} • Clique para ver sugestões`}
+                  >
+                    <AlertTriangle className="w-2.5 h-2.5" />
+                  </button>
+                ) : null;
 
                 return (
                   <div
@@ -254,11 +428,16 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                         ? 'ring-2 ring-indigo-500 border-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 shadow-lg scale-102 z-10'
                         : highlightClass
                         ? highlightClass
+                        : hasConflict
+                        ? hasCriticalConflict 
+                          ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900/60 shadow-2xs hover:border-rose-400' 
+                          : 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-300 dark:border-amber-900/60 shadow-2xs hover:border-amber-400'
                         : student
                         ? 'bg-white dark:bg-[#181820] border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-zinc-100 hover:border-slate-300 dark:hover:border-zinc-700 hover:bg-slate-50 dark:hover:bg-[#1e1e27] shadow-xs'
                         : 'bg-white/70 dark:bg-zinc-900/30 border-dashed border-slate-300 dark:border-zinc-800/80 text-slate-500 dark:text-zinc-400 hover:bg-emerald-50 dark:hover:bg-indigo-950/20 hover:border-emerald-400 dark:hover:border-indigo-500/40'
                     }`}
                   >
+                    {conflictBadge}
                     {highlightBadge}
 
                     {/* Desk Top Bar: Position Coordinate & Lock/Remove */}
@@ -431,12 +610,15 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500 dark:bg-amber-400 inline-block" /> Conversador
           </span>
           <span className="flex items-center gap-1">
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" /> Conflito Detectado
+          </span>
+          <span className="flex items-center gap-1">
             <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> Carteira Travada
           </span>
         </div>
 
         <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-medium">
-          💡 Clique em uma carteira e depois em outra para trocar os alunos instantaneamente!
+          💡 Clique em uma carteira com aviso ⚠️ para ver recomendações de troca com 1 clique!
         </span>
       </div>
 

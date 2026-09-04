@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { Classroom, Student, StudentRelation, GenerationOptions, GenerationReport, RoomConfig, Institution, AppUser, SeatingPlanCategory, SavedSeatingPlan } from './types';
 import { INITIAL_CLASSROOMS, INITIAL_INSTITUTIONS, INITIAL_USERS, createDefaultRoomConfig } from './utils/sampleData';
-import { runSeatingOptimizer, generateReport } from './utils/algorithm';
+import { runSeatingOptimizer, generateReport, autoResolveAllConflicts } from './utils/algorithm';
 import { exportClassroomToCSV, exportBackupJSON, exportToPdf } from './utils/exportUtils';
 import {
   ensureClassroomPlans,
@@ -524,6 +524,41 @@ export default function App() {
     });
   };
 
+  const handleAutoResolveAllConflicts = () => {
+    if (!activeClassroom) return;
+    const result = autoResolveAllConflicts(activeClassroom, {
+      mode: 'balanced',
+      antiAffinityWeight: 9,
+      affinityWeight: 7,
+      specialNeedsWeight: 10,
+      separateTalkativeWeight: 8,
+      avoidIsolatedStudents: true,
+      respectFixedDesks: true,
+    });
+
+    updateActiveClassroom(prev => ({
+      ...prev,
+      seatingMap: result.seatingMap,
+      updatedAt: Date.now(),
+    }));
+
+    if (result.remainingConflicts === 0) {
+      setPlanFeedback('Todos os conflitos foram corrigidos com sucesso!');
+      try {
+        confetti({
+          particleCount: 60,
+          spread: 60,
+          origin: { y: 0.6 },
+        });
+      } catch {
+        // ignore
+      }
+    } else {
+      setPlanFeedback(`${result.resolvedCount} conflito(s) resolvido(s)!`);
+    }
+    setTimeout(() => setPlanFeedback(null), 3500);
+  };
+
   const handleClearSeating = () => {
     setIsClearMapModalOpen(true);
   };
@@ -971,6 +1006,7 @@ export default function App() {
 
             <SeatingGrid
               classroom={activeClassroom}
+              conflicts={currentReport?.conflicts || []}
               onSwapDesks={handleSwapDesks}
               onAssignStudentToDesk={handleAssignStudentToDesk}
               onRemoveStudentFromDesk={handleRemoveStudentFromDesk}
@@ -979,6 +1015,7 @@ export default function App() {
                 setEditingStudent(student);
                 setIsStudentModalOpen(true);
               }}
+              onOpenConflictModal={() => setIsConflictModalOpen(true)}
             />
           </div>
         )}
@@ -1114,6 +1151,7 @@ export default function App() {
         classroom={activeClassroom}
         conflicts={currentReport?.conflicts || []}
         onSwapDesks={handleSwapDesks}
+        onAutoResolveAll={handleAutoResolveAllConflicts}
       />
 
       {/* Master Modals */}

@@ -12,7 +12,8 @@ import {
   ChevronDown, 
   ChevronUp,
   HeartHandshake,
-  HelpCircle
+  HelpCircle,
+  Lightbulb
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Classroom, GenerationOptions, GenerationReport } from '../types';
@@ -293,20 +294,30 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
             {criticalConflicts.length > 0 && (
               <button
                 onClick={onOpenConflictModal}
-                className="flex items-center gap-1.5 px-3 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 dark:text-rose-300 rounded-xl font-bold border border-rose-300 dark:border-rose-800/50 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 dark:text-rose-300 rounded-xl font-bold border border-rose-300 dark:border-rose-800/50 transition-colors cursor-pointer shadow-xs"
+                title="Visualizar diagnóstico e aplicar sugestões de correção de carteiras"
               >
                 <AlertCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                {criticalConflicts.length} Conflito(s) Crítico(s)
+                <span>{criticalConflicts.length} Conflito(s) Crítico(s)</span>
+                <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-white/80 dark:bg-black/40 text-rose-800 dark:text-rose-200 rounded-md font-extrabold flex items-center gap-1">
+                  <Lightbulb className="w-2.5 h-2.5" />
+                  Sugestões
+                </span>
               </button>
             )}
 
             {warningConflicts.length > 0 && criticalConflicts.length === 0 && (
               <button
                 onClick={onOpenConflictModal}
-                className="flex items-center gap-1.5 px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 dark:text-amber-300 rounded-xl font-medium border border-amber-300 dark:border-amber-800/50 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 dark:text-amber-300 rounded-xl font-medium border border-amber-300 dark:border-amber-800/50 transition-colors cursor-pointer shadow-xs"
+                title="Visualizar diagnóstico e aplicar sugestões de correção de carteiras"
               >
                 <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                {warningConflicts.length} Ponto(s) de Atenção
+                <span>{warningConflicts.length} Ponto(s) de Atenção</span>
+                <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-white/80 dark:bg-black/40 text-amber-800 dark:text-amber-200 rounded-md font-extrabold flex items-center gap-1">
+                  <Lightbulb className="w-2.5 h-2.5" />
+                  Sugestões
+                </span>
               </button>
             )}
 

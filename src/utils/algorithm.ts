@@ -1,4 +1,4 @@
-import { Classroom, Student, GenerationOptions, GenerationReport, ConflictDiagnostic, CanBeNearLevel, CannotBeNearLevel } from '../types';
+import { Classroom, Student, GenerationOptions, GenerationReport, ConflictDiagnostic, ConflictSuggestion, CanBeNearLevel, CannotBeNearLevel } from '../types';
 
 export interface DeskPosition {
   id: string;
@@ -412,6 +412,269 @@ export function evaluateSeatingScore(
   };
 }
 
+/**
+ * Generates actionable, mathematically verified correction suggestions for a given conflict.
+ * Tests candidate desk moves and swaps to find options that eliminate the conflict and maximize harmony score.
+ */
+export function generateConflictSuggestions(
+  conflict: ConflictDiagnostic,
+  classroom: Classroom,
+  currentSeating: Record<string, string | null>,
+  options: GenerationOptions
+): ConflictSuggestion[] {
+  const activeDesks = getActiveDesks(classroom);
+  const lockedDesks = classroom.lockedDesks || {};
+  const studentMap = new Map<string, Student>();
+  classroom.students.forEach(s => studentMap.set(s.id, s));
+  const deskMap = new Map<string, DeskPosition>();
+  activeDesks.forEach(d => deskMap.set(d.id, d));
+
+  const currentEval = evaluateSeatingScore(currentSeating, classroom, options);
+  const currentScore = currentEval.score;
+  const currentCriticalCount = currentEval.conflicts.filter(c => c.severity === 'critical').length;
+
+  const s1 = studentMap.get(conflict.student1Id);
+  const s2 = conflict.student2Id ? studentMap.get(conflict.student2Id) : undefined;
+  if (!s1) return [];
+
+  // Determine students that can be moved
+  const moveableStudents: { student: Student; deskId: string; otherStudent?: Student }[] = [];
+  if (!lockedDesks[conflict.desk1Id]) {
+    moveableStudents.push({ student: s1, deskId: conflict.desk1Id, otherStudent: s2 });
+  }
+  if (s2 && conflict.desk2Id && !lockedDesks[conflict.desk2Id]) {
+    moveableStudents.push({ student: s2, deskId: conflict.desk2Id, otherStudent: s1 });
+  }
+
+  if (moveableStudents.length === 0) {
+    return [];
+  }
+
+  interface CandidateMove {
+    sourceStudent: Student;
+    sourceDeskId: string;
+    otherStudent?: Student;
+    targetDesk: DeskPosition;
+    targetStudent?: Student;
+    simScore: number;
+    scoreDelta: number;
+    resolvedThisConflict: boolean;
+    criticalDelta: number;
+    rankScore: number;
+  }
+
+  const candidateMoves: CandidateMove[] = [];
+
+  for (const moveItem of moveableStudents) {
+    const { student: sourceStudent, deskId: sourceDeskId, otherStudent } = moveItem;
+
+    for (const candDesk of activeDesks) {
+      if (candDesk.id === sourceDeskId) continue;
+      if (otherStudent && conflict.desk2Id && candDesk.id === conflict.desk2Id && sourceDeskId === conflict.desk1Id) continue;
+      if (otherStudent && conflict.desk1Id && candDesk.id === conflict.desk1Id && sourceDeskId === conflict.desk2Id) continue;
+      if (lockedDesks[candDesk.id]) continue;
+
+      const targetStudentId = currentSeating[candDesk.id];
+      const targetStudent = targetStudentId ? studentMap.get(targetStudentId) : undefined;
+
+      // Simulate swap
+      const simulatedSeating = {
+        ...currentSeating,
+        [sourceDeskId]: targetStudentId || null,
+        [candDesk.id]: sourceStudent.id,
+      };
+
+      const simEval = evaluateSeatingScore(simulatedSeating, classroom, options);
+      const newCriticalCount = simEval.conflicts.filter(c => c.severity === 'critical').length;
+      const criticalDelta = currentCriticalCount - newCriticalCount;
+      const scoreDelta = simEval.score - currentScore;
+
+      // Check if the original conflict still exists
+      let resolvedThisConflict = false;
+      if (otherStudent) {
+        const pairStillHasConflict = simEval.conflicts.some(
+          c => (c.student1Id === sourceStudent.id && c.student2Id === otherStudent.id) ||
+               (c.student1Id === otherStudent.id && c.student2Id === sourceStudent.id)
+        );
+        resolvedThisConflict = !pairStillHasConflict;
+      } else {
+        const stillHasConflict = simEval.conflicts.some(
+          c => c.student1Id === sourceStudent.id && c.type === conflict.type
+        );
+        resolvedThisConflict = !stillHasConflict;
+      }
+
+      // Ranking heuristic
+      let rankScore = 0;
+      if (resolvedThisConflict) rankScore += 600;
+      rankScore += criticalDelta * 300;
+      rankScore += scoreDelta * 25;
+
+      // Anti-affinity distance reward
+      if (otherStudent) {
+        const otherDeskId = sourceDeskId === conflict.desk1Id ? conflict.desk2Id : conflict.desk1Id;
+        const otherDeskPos = otherDeskId ? deskMap.get(otherDeskId) : undefined;
+        if (otherDeskPos) {
+          const dist = calculateDistance(candDesk, otherDeskPos);
+          if (dist >= 3.0) rankScore += 150;
+          else if (dist >= 2.0) rankScore += 80;
+        }
+      }
+
+      // Front need reward
+      if (conflict.type === 'front_need_violated' && (candDesk.row === 0 || candDesk.row === 1)) {
+        rankScore += (2 - candDesk.row) * 140;
+      }
+
+      // Back need reward
+      if (conflict.type === 'back_need_violated' && candDesk.row >= classroom.roomConfig.rows - 2) {
+        rankScore += 150;
+      }
+
+      // Discard moves that worsen critical conflicts and don't even resolve this one
+      if (criticalDelta < 0 && !resolvedThisConflict) continue;
+
+      candidateMoves.push({
+        sourceStudent,
+        sourceDeskId,
+        otherStudent,
+        targetDesk: candDesk,
+        targetStudent,
+        simScore: simEval.score,
+        scoreDelta,
+        resolvedThisConflict,
+        criticalDelta,
+        rankScore,
+      });
+    }
+  }
+
+  // Sort descending by rankScore
+  candidateMoves.sort((a, b) => b.rankScore - a.rankScore);
+
+  // Take top 3 diverse suggestions
+  const chosen: CandidateMove[] = [];
+  const seenTargets = new Set<string>();
+
+  for (const move of candidateMoves) {
+    const key = `${move.sourceStudent.id}->${move.targetDesk.id}`;
+    if (!seenTargets.has(key)) {
+      seenTargets.add(key);
+      chosen.push(move);
+      if (chosen.length >= 3) break;
+    }
+  }
+
+  // Build user-facing ConflictSuggestion objects
+  return chosen.map((move, idx) => {
+    const targetCoord = `Fila ${move.targetDesk.row + 1} • Coluna ${move.targetDesk.col + 1}`;
+    const isMoveToEmpty = !move.targetStudent;
+    const improvementDelta = Math.max(1, move.scoreDelta);
+    const improvementText = move.scoreDelta > 0 ? `+${move.scoreDelta}% de harmonia` : 'resolução do conflito';
+
+    let title = '';
+    let explanation = '';
+
+    if (conflict.type === 'anti_affinity') {
+      if (isMoveToEmpty) {
+        title = `Mover ${move.sourceStudent.name} para a Carteira Vazia (${targetCoord})`;
+        explanation = `Desloca ${move.sourceStudent.name} para uma posição livre, afastando-se com segurança de ${move.otherStudent?.name || 'seu colega'} e garantindo ${improvementText}.`;
+      } else {
+        title = `Trocar ${move.sourceStudent.name} com ${move.targetStudent!.name} (${targetCoord})`;
+        explanation = `Inverte a posição com ${move.targetStudent!.name}, separando definitivamente ${move.sourceStudent.name} e ${move.otherStudent?.name || 'o colega'} e alcançando ${improvementText}.`;
+      }
+    } else if (conflict.type === 'two_talkative') {
+      if (isMoveToEmpty) {
+        title = `Mover ${move.sourceStudent.name} para a Carteira Vazia (${targetCoord})`;
+        explanation = `Separa os alunos conversadores, direcionando ${move.sourceStudent.name} para uma área calma (${improvementText}).`;
+      } else {
+        title = `Trocar ${move.sourceStudent.name} com ${move.targetStudent!.name} (${targetCoord})`;
+        explanation = `Dispersa a conversa colocando um aluno de perfil focado entre eles (${improvementText}).`;
+      }
+    } else if (conflict.type === 'front_need_violated') {
+      if (isMoveToEmpty) {
+        title = `Mover ${move.sourceStudent.name} para a Frente (${targetCoord})`;
+        explanation = `Aloca ${move.sourceStudent.name} na fileira frontal livre para atender à necessidade pedagógica/visão (${improvementText}).`;
+      } else {
+        title = `Trocar ${move.sourceStudent.name} com ${move.targetStudent!.name} na Frente (${targetCoord})`;
+        explanation = `Posiciona ${move.sourceStudent.name} na frente em substituição a um aluno sem restrições visuais/auditivas (${improvementText}).`;
+      }
+    } else if (conflict.type === 'back_need_violated') {
+      title = isMoveToEmpty
+        ? `Mover ${move.sourceStudent.name} para o Fundo (${targetCoord})`
+        : `Trocar ${move.sourceStudent.name} com ${move.targetStudent!.name} no Fundo (${targetCoord})`;
+      explanation = `Reposiciona ${move.sourceStudent.name} para trás, liberando a visibilidade da lousa para o restante da turma (${improvementText}).`;
+    } else {
+      title = isMoveToEmpty
+        ? `Mover para Carteira Vazia (${targetCoord})`
+        : `Trocar com ${move.targetStudent!.name} (${targetCoord})`;
+      explanation = `Reorganiza a carteira para resolver o ponto de atenção com ${improvementText}.`;
+    }
+
+    const impact: ConflictSuggestion['impact'] = move.resolvedThisConflict && move.criticalDelta >= 0
+      ? 'resolves_completely'
+      : move.scoreDelta > 0
+      ? 'significantly_improves'
+      : 'mitigates';
+
+    return {
+      id: `sug-${conflict.id}-${idx}`,
+      conflictId: conflict.id,
+      type: isMoveToEmpty ? 'move_to_empty' : 'swap',
+      title,
+      explanation,
+      sourceDeskId: move.sourceDeskId,
+      sourceStudentName: move.sourceStudent.name,
+      targetDeskId: move.targetDesk.id,
+      targetStudentName: move.targetStudent?.name || 'Carteira Vazia',
+      targetStudentId: move.targetStudent?.id,
+      expectedScoreImprovement: improvementDelta,
+      impact,
+    };
+  });
+}
+
+/**
+ * Automatically resolves conflicts iteratively by applying the best available suggestion for each issue.
+ */
+export function autoResolveAllConflicts(
+  classroom: Classroom,
+  options: GenerationOptions
+): {
+  seatingMap: Record<string, string | null>;
+  resolvedCount: number;
+  remainingConflicts: number;
+} {
+  let currentSeating = { ...classroom.seatingMap };
+  let resolvedCount = 0;
+  const maxIterations = 8;
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    const report = generateReport(currentSeating, classroom, options);
+    if (report.conflicts.length === 0) break;
+
+    const targetConflict = report.conflicts.find(c => c.severity === 'critical') || report.conflicts[0];
+    const suggestions = targetConflict.suggestions || generateConflictSuggestions(targetConflict, classroom, currentSeating, options);
+    if (!suggestions || suggestions.length === 0) break;
+
+    const best = suggestions[0];
+    const newSeating = { ...currentSeating };
+    const temp = newSeating[best.sourceDeskId] || null;
+    newSeating[best.sourceDeskId] = newSeating[best.targetDeskId] || null;
+    newSeating[best.targetDeskId] = temp;
+
+    currentSeating = newSeating;
+    resolvedCount++;
+  }
+
+  const finalReport = generateReport(currentSeating, classroom, options);
+  return {
+    seatingMap: currentSeating,
+    resolvedCount,
+    remainingConflicts: finalReport.conflicts.length,
+  };
+}
+
 export function generateReport(
   seating: Record<string, string | null>,
   classroom: Classroom,
@@ -419,16 +682,22 @@ export function generateReport(
 ): GenerationReport {
   const result = evaluateSeatingScore(seating, classroom, options);
 
+  // Attach intelligent actionable suggestions to every diagnostic conflict
+  const conflictsWithSuggestions = result.conflicts.map(c => ({
+    ...c,
+    suggestions: generateConflictSuggestions(c, classroom, seating, options),
+  }));
+
   let grade: GenerationReport['grade'] = 'A+';
-  if (result.score >= 95 && result.conflicts.filter(c => c.severity === 'critical').length === 0) grade = 'A+';
+  if (result.score >= 95 && conflictsWithSuggestions.filter(c => c.severity === 'critical').length === 0) grade = 'A+';
   else if (result.score >= 85) grade = 'A';
   else if (result.score >= 70) grade = 'B';
   else if (result.score >= 50) grade = 'C';
   else grade = 'D';
 
   let summary = '';
-  const criticalCount = result.conflicts.filter(c => c.severity === 'critical').length;
-  const warningCount = result.conflicts.filter(c => c.severity === 'warning').length;
+  const criticalCount = conflictsWithSuggestions.filter(c => c.severity === 'critical').length;
+  const warningCount = conflictsWithSuggestions.filter(c => c.severity === 'warning').length;
 
   if (criticalCount === 0 && warningCount === 0) {
     if (result.totalAffinities > 0) {
@@ -445,7 +714,7 @@ export function generateReport(
   return {
     score: result.score,
     grade,
-    conflicts: result.conflicts,
+    conflicts: conflictsWithSuggestions,
     affinitiesSatisfied: result.affinitiesMet,
     totalAffinities: result.totalAffinities,
     specialNeedsSatisfied: result.specialNeedsMet,
