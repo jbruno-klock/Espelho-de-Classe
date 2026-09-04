@@ -600,13 +600,27 @@ export default function App() {
     });
   };
 
-  const handleBatchImport = (importedStudents: Student[]) => {
+  const handleBatchImport = (importedStudents: Student[], mode: 'append' | 'replace' = 'append') => {
     updateActiveClassroom(prev => {
-      return {
-        ...prev,
-        students: [...prev.students, ...importedStudents],
-        updatedAt: Date.now(),
-      };
+      if (mode === 'replace') {
+        // Clear desk assignments for desks where old students were seated
+        const clearedMap: Record<string, string | null> = {};
+        Object.keys(prev.seatingMap).forEach(deskId => {
+          clearedMap[deskId] = null;
+        });
+        return {
+          ...prev,
+          students: importedStudents,
+          seatingMap: clearedMap,
+          updatedAt: Date.now(),
+        };
+      } else {
+        return {
+          ...prev,
+          students: [...prev.students, ...importedStudents],
+          updatedAt: Date.now(),
+        };
+      }
     });
     setIsBatchImportModalOpen(false);
   };

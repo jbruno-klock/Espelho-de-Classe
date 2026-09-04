@@ -2,11 +2,11 @@ import React, { useState, useRef } from 'react';
 import { 
   X, FileText, Check, Upload, HelpCircle, ArrowRight, ArrowLeft,
   UserCheck, Download, AlertCircle, Sparkles, RefreshCw, CheckCircle2,
-  Sliders, Eye, Table, Layers, FileSpreadsheet, Search
+  Sliders, Eye, Table, Layers, FileSpreadsheet, Search, UserPlus, Users
 } from 'lucide-react';
 import { Student, StudentRelation, SpecialNeedType, Classroom, Institution, CanBeNearLevel, CannotBeNearLevel } from '../types';
 import { AVATAR_COLORS } from '../utils/sampleData';
-import { decodeFileBuffer, normalizeForSearch, fixMojibake } from '../utils/fileImportUtils';
+import { decodeFileBuffer, normalizeForSearch, fixMojibake, findHeaderRowIndex } from '../utils/fileImportUtils';
 import { downloadTeacherSpreadsheetExcel, downloadTeacherSpreadsheetCSV } from '../utils/teacherSpreadsheetGenerator';
 
 interface BatchImportModalProps {
@@ -41,6 +41,29 @@ type TargetField =
   | 'antiAffinitySeverity'
   | 'antiAffinityCategory'
   | 'notes';
+
+const FIELD_LABELS: Record<TargetField, string> = {
+  none: 'Ignorar Coluna',
+  name: 'Nome Completo',
+  nickname: 'Apelido / Nome Social',
+  rollNumber: 'Nº Chamada',
+  gender: 'Gênero (M / F)',
+  behavior: 'Perfil Comportamental',
+  academicLevel: 'Nível Acadêmico',
+  visionNeeds: 'Necessidade Visual',
+  hearingNeeds: 'Necessidade Auditiva',
+  reducedMobility: 'Mobilidade Reduzida',
+  specialNeeds: 'Condição Especial / Laudo',
+  specialNeedsNotes: 'Detalhes do Laudo',
+  preferredRow: 'Preferência de Fileira',
+  affinities: 'Afinidades (Ficar Perto)',
+  affinityPriority: 'Prioridade da Parceria',
+  affinityCategory: 'Motivo da Proximidade',
+  antiAffinities: 'Desafinidades (Distanciar)',
+  antiAffinitySeverity: 'Nível de Separação',
+  antiAffinityCategory: 'Motivo do Distanciamento',
+  notes: 'Observações Gerais',
+};
 
 interface ColumnMapping {
   csvHeader: string;
@@ -87,6 +110,7 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
   const [importMode, setImportMode] = useState<'append' | 'replace'>('append');
 
   // CSV parsing state
+  const [headerRowIndex, setHeaderRowIndex] = useState<number>(0);
   const [rawMatrix, setRawMatrix] = useState<string[][]>([]);
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
@@ -157,127 +181,147 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
   // Heuristic column target detection with accent-insensitive matching
   const detectFieldFromHeader = (header: string): TargetField => {
     const h = normalizeForSearch(header);
-    if (/^(nome|aluno|estudante|nome completo|name|student)$/.test(h) || h.includes('nome completo') || h.includes('nome do aluno')) {
-      return 'name';
+    if (!h) return 'none';
+
+    // 1. Proximity & Affinities
+    if (
+      (h.includes('prioridade') || h.includes('grau') || h.includes('nivel')) && 
+      (h.includes('parceria') || h.includes('afinidade') || h.includes('perto') || h.includes('proximidade'))
+    ) {
+      return 'affinityPriority';
     }
-    if (h.includes('apelido') || h.includes('social') || h.includes('nickname') || h.includes('chamado')) {
-      return 'nickname';
+    if (
+      h.includes('motivo') && 
+      (h.includes('proximidade') || h.includes('afinidade') || h.includes('perto') || h.includes('parceria'))
+    ) {
+      return 'affinityCategory';
     }
-    if (/^(numero|num|nº|chamada|roll|ordem|id)$/.test(h) || h.includes('chamada') || h.includes('numero')) {
-      return 'rollNumber';
+    if (
+      (h.includes('separacao') || h.includes('severidade') || h.includes('grau') || h.includes('nivel')) && 
+      (h.includes('distanciamento') || h.includes('desafinidade') || h.includes('separ') || h.includes('afast'))
+    ) {
+      return 'antiAffinitySeverity';
     }
+    if (
+      h.includes('motivo') && 
+      (h.includes('distanciamento') || h.includes('separ') || h.includes('desafin') || h.includes('afast'))
+    ) {
+      return 'antiAffinityCategory';
+    }
+    if (
+      h.includes('nao podem') || h.includes('nao pode') || h.includes('desafinidade') || 
+      h.includes('afastar') || h.includes('separar') || h.includes('conflito') || h.includes('distanciamento')
+    ) {
+      return 'antiAffinities';
+    }
+    if (
+      h.includes('podem') || h.includes('pode') || h.includes('afinidade') || 
+      h.includes('amigo') || h.includes('juntos') || h.includes('parceria') || h.includes('proximidade')
+    ) {
+      return 'affinities';
+    }
+
+    // 2. Special Needs & Accessibility
+    if (
+      h.includes('detalhes') || h.includes('observacoes medicas') || 
+      h.includes('laudo / recomendacoes') || (h.includes('laudo') && h.includes('detalhes')) || 
+      h.includes('recomendac') || h.includes('cid')
+    ) {
+      return 'specialNeedsNotes';
+    }
+    if (
+      /^(necessidades|inclusao|apoio|pcd|tdah|tea|special|laudo|deficiencia)$/.test(h) || 
+      h.includes('inclusao') || h.includes('especial') || h.includes('condicao') || 
+      h.includes('laudo') || h.includes('pcd') || h.includes('deficiencia')
+    ) {
+      return 'specialNeeds';
+    }
+    if (
+      /^(visao|visual|oculos|vision|miopia)$/.test(h) || 
+      h.includes('visao') || h.includes('oculo') || h.includes('visual') || h.includes('cegueira')
+    ) {
+      return 'visionNeeds';
+    }
+    if (
+      /^(audicao|auditivo|auditiva|hearing|aparelho auditivo|surdo)$/.test(h) || 
+      h.includes('audicao') || h.includes('ouvido') || h.includes('auditiv') || h.includes('surdo')
+    ) {
+      return 'hearingNeeds';
+    }
+    if (
+      /^(mobilidade|cadeirante|acessibilidade|mobility)$/.test(h) || 
+      h.includes('mobilidade') || h.includes('cadeir') || h.includes('locomoc') || h.includes('fisic')
+    ) {
+      return 'reducedMobility';
+    }
+    if (
+      h.includes('fileira') || h.includes('posicao') || 
+      h.includes('frente ou fundo') || h.includes('preferencia de fileira') || h.includes('assento')
+    ) {
+      return 'preferredRow';
+    }
+
+    // 3. Behavioral & Academic
+    if (
+      /^(comportamento|behavior|perfil|conduta|disciplina)$/.test(h) || 
+      h.includes('comportamento') || h.includes('perfil') || h.includes('conduta')
+    ) {
+      return 'behavior';
+    }
+    if (
+      /^(nivel|academico|desempenho|academic|rendimento|notas)$/.test(h) || 
+      h.includes('academico') || h.includes('desempenho') || h.includes('rendimento')
+    ) {
+      return 'academicLevel';
+    }
+
+    // 4. Personal Info
     if (/^(genero|sexo|gender|sex)$/.test(h) || h.includes('genero') || h.includes('sexo')) {
       return 'gender';
     }
-    if (/^(comportamento|behavior|perfil|conduta)$/.test(h) || h.includes('comportamento') || h.includes('perfil')) {
-      return 'behavior';
+    if (
+      h.includes('apelido') || h.includes('social') || 
+      h.includes('nickname') || h.includes('chamado')
+    ) {
+      return 'nickname';
     }
-    if (/^(nivel|academico|desempenho|academic|nivel academico)$/.test(h) || h.includes('academico') || h.includes('desempenho')) {
-      return 'academicLevel';
+    if (
+      /^(numero|num|nº|chamada|roll|ordem|id|matricula|ra)$/.test(h) || 
+      h.includes('chamada') || h.includes('numero') || h.includes('nº') || h.includes('matricula')
+    ) {
+      return 'rollNumber';
     }
-    if (/^(visao|visual|oculos|vision|miopia)$/.test(h) || h.includes('visao') || h.includes('oculo') || h.includes('visual')) {
-      return 'visionNeeds';
+    if (
+      /^(nome|aluno|estudante|nome completo|name|student|aluno\(a\))$/.test(h) || 
+      h.includes('nome completo') || h.includes('nome do aluno') || h.includes('nome') || 
+      h.includes('estudante') || h.includes('aluno')
+    ) {
+      return 'name';
     }
-    if (/^(audicao|auditivo|hearing|aparelho auditivo)$/.test(h) || h.includes('audicao') || h.includes('ouvido') || h.includes('auditivo')) {
-      return 'hearingNeeds';
-    }
-    if (/^(mobilidade|cadeirante|acessibilidade|mobility)$/.test(h) || h.includes('mobilidade') || h.includes('cadeir')) {
-      return 'reducedMobility';
-    }
-    if (h.includes('fileira') || h.includes('posicao') || h.includes('frente ou fundo') || h.includes('preferencia de fileira')) {
-      return 'preferredRow';
-    }
-    if (h.includes('detalhes') || h.includes('observacoes medicas') || h.includes('laudo / recomendacoes') || (h.includes('laudo') && h.includes('detalhes'))) {
-      return 'specialNeedsNotes';
-    }
-    if (/^(necessidades|inclusao|apoio|pcd|tdah|tea|special|laudo)$/.test(h) || h.includes('inclusao') || h.includes('especial') || h.includes('condicao')) {
-      return 'specialNeeds';
-    }
-    // Proximity priority and category detection
-    if ((h.includes('prioridade') || h.includes('grau')) && (h.includes('parceria') || h.includes('afinidade') || h.includes('perto') || h.includes('proximidade'))) {
-      return 'affinityPriority';
-    }
-    if (h.includes('motivo') && (h.includes('proximidade') || h.includes('afinidade') || h.includes('perto') || h.includes('parceria'))) {
-      return 'affinityCategory';
-    }
-    if ((h.includes('separacao') || h.includes('severidade') || h.includes('grau')) && (h.includes('distanciamento') || h.includes('desafinidade') || h.includes('separ') || h.includes('afast'))) {
-      return 'antiAffinitySeverity';
-    }
-    if (h.includes('motivo') && (h.includes('distanciamento') || h.includes('separ') || h.includes('desafin') || h.includes('afast'))) {
-      return 'antiAffinityCategory';
-    }
-    // Who can / cannot be near
-    if (h.includes('nao podem') || h.includes('nao pode') || h.includes('desafinidade') || h.includes('afastar') || h.includes('separar') || h.includes('conflito') || h.includes('distanciamento')) {
-      return 'antiAffinities';
-    }
-    if (h.includes('podem') || h.includes('pode') || h.includes('afinidade') || h.includes('amigo') || h.includes('juntos') || h.includes('parceria')) {
-      return 'affinities';
-    }
-    if (/^(observacoes|obs|notas|comentarios|notes)$/.test(h) || h.includes('obs') || h.includes('nota') || h.includes('comentario')) {
+
+    // 5. Notes / Observations
+    if (
+      /^(observacoes|obs|notas|comentarios|notes|anotacoes)$/.test(h) || 
+      h.includes('obs') || h.includes('nota') || h.includes('comentario') || 
+      h.includes('observac') || h.includes('anotac')
+    ) {
       return 'notes';
     }
+
     return 'none';
   };
 
-  // Handle file selection with binary array buffer decoding (supporting XLSX, XLS, CSV, TXT)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Pure function to build ParsedRow list from column mappings and raw data
+  const buildRowsFromMappings = (
+    mappings: ColumnMapping[],
+    rows: string[][],
+    baseRoll: number,
+    existingPool: Student[]
+  ): ParsedRow[] => {
+    // Filter out rows that are entirely empty or just contain hyphens/whitespace
+    const validRawRows = rows.filter(r => r.some(c => c && c.trim().length > 0 && c.trim() !== '-'));
 
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const buffer = event.target?.result as ArrayBuffer;
-      if (buffer) {
-        const text = decodeFileBuffer(buffer, file.name);
-        if (text) {
-          setRawText(text);
-          processRawText(text);
-        }
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const processRawText = (text: string) => {
-    const normalizedText = fixMojibake(text);
-    const matrix = parseCSVString(normalizedText);
-    if (matrix.length === 0) return;
-
-    setRawMatrix(matrix);
-
-    const headers = hasHeaders 
-      ? matrix[0] 
-      : matrix[0].map((_, i) => `Coluna ${i + 1}`);
-
-    const dataRows = hasHeaders ? matrix.slice(1) : matrix;
-
-    const initialMappings: ColumnMapping[] = headers.map((header, colIdx) => {
-      const sampleVals = dataRows.slice(0, 4).map(r => r[colIdx] || '').filter(Boolean);
-      const target = detectFieldFromHeader(header);
-      return {
-        csvHeader: header || `Coluna ${colIdx + 1}`,
-        targetField: target,
-        sampleValues: sampleVals,
-      };
-    });
-
-    // If no name column was mapped, map the first non-numeric column to name
-    const hasNameMapped = initialMappings.some(m => m.targetField === 'name');
-    if (!hasNameMapped && initialMappings.length > 0) {
-      initialMappings[0].targetField = 'name';
-    }
-
-    setColumnMappings(initialMappings);
-    setStep('mapping');
-  };
-
-  // Process rows from mapping to preview
-  const generatePreviewFromMapping = () => {
-    const dataRows = hasHeaders ? rawMatrix.slice(1) : rawMatrix;
-    let baseRoll = importMode === 'append' ? existingCount + 1 : 1;
-
-    const preliminaryRows: ParsedRow[] = dataRows.map((row, rowIdx) => {
+    const preliminaryRows: ParsedRow[] = validRawRows.map((row, rowIdx) => {
       const rowData: Record<TargetField, string> = {
         none: '',
         name: '',
@@ -301,13 +345,13 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
         notes: '',
       };
 
-      columnMappings.forEach((mapping, colIdx) => {
+      mappings.forEach((mapping, colIdx) => {
         if (mapping.targetField !== 'none' && row[colIdx] !== undefined) {
           rowData[mapping.targetField] = fixMojibake(row[colIdx]);
         }
       });
 
-      // Parse fields
+      // Parse and normalize student attributes
       let cleanName = rowData.name.replace(/^[\d]+[\.\-\)\s]+/, '').trim();
       let roll = parseInt(rowData.rollNumber, 10);
       if (isNaN(roll) || roll <= 0) {
@@ -344,16 +388,20 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
       if (rowData.specialNeeds) {
         const rawTokens = rowData.specialNeeds.split(/[,;\/]/).map(s => normalizeForSearch(s)).filter(Boolean);
         for (const token of rawTokens) {
-          if (token.includes('visa') || token.includes('oculo') || token.includes('mio')) {
+          if (token.includes('visa') || token.includes('oculo') || token.includes('mio') || token.includes('ceg')) {
             if (!specialNeeds.includes('low_vision')) specialNeeds.push('low_vision');
           } else if (token.includes('audit') || token.includes('ouvid') || token.includes('surd')) {
             if (!specialNeeds.includes('hearing_impairment')) specialNeeds.push('hearing_impairment');
           } else if (token.includes('tdah') || token.includes('adhd') || token.includes('foco') || token.includes('atenc')) {
             if (!specialNeeds.includes('adhd_focus')) specialNeeds.push('adhd_focus');
+          } else if (token.includes('tea') || token.includes('autis') || token.includes('asperger')) {
+            if (!specialNeeds.includes('adhd_focus')) specialNeeds.push('adhd_focus');
           } else if (token.includes('cadeir') || token.includes('mobilid') || token.includes('locomo')) {
             if (!specialNeeds.includes('wheelchair_mobility')) specialNeeds.push('wheelchair_mobility');
           } else if (token.includes('alto') || token.includes('estat') || token.includes('tall')) {
             if (!specialNeeds.includes('tall_student')) specialNeeds.push('tall_student');
+          } else if (token.includes('canhot') || token.includes('left')) {
+            if (!specialNeeds.includes('custom')) specialNeeds.push('custom');
           } else if (token.length > 0 && !token.includes('nenhum')) {
             if (!specialNeeds.includes('custom')) specialNeeds.push('custom');
           }
@@ -436,7 +484,7 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
 
     // Cross-link affinities and anti-affinities between students with accent-tolerant matching!
     const allStudentsPool = [
-      ...(importMode === 'append' ? existingStudents : []),
+      ...existingPool,
       ...preliminaryRows.map(r => r.student),
     ];
 
@@ -444,7 +492,7 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
       const affNames = row.rawAffinitiesStr.split(/[,;\/]/).map(s => normalizeForSearch(s)).filter(Boolean);
       const antiNames = row.rawAntiAffinitiesStr.split(/[,;\/]/).map(s => normalizeForSearch(s)).filter(Boolean);
 
-      // Determine level and category for affinities from teacher spreadsheet
+      // Determine level and category for affinities
       let affLevel: CanBeNearLevel = 'high';
       const apStr = normalizeForSearch(row.affinityPriorityStr);
       if (apStr.includes('3') || apStr.includes('alta') || apStr.includes('essencial') || apStr.includes('max')) {
@@ -456,7 +504,7 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
       }
       const affCategory = row.affinityCategoryStr || 'Apoio Pedagógico & Monitoria';
 
-      // Determine level and category for anti-affinities from teacher spreadsheet
+      // Determine level and category for anti-affinities
       let antiLevel: CannotBeNearLevel = 'critical';
       const asStr = normalizeForSearch(row.antiAffinitySeverityStr);
       if (asStr.includes('3') || asStr.includes('crit') || asStr.includes('obrig') || asStr.includes('sever')) {
@@ -475,7 +523,8 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
         const match = allStudentsPool.find(s => {
           if (s.id === row.student.id) return false;
           const sNameNorm = normalizeForSearch(s.name);
-          return sNameNorm.includes(targetStr) || s.rollNumber.toString() === targetStr;
+          const sNickNorm = s.nickname ? normalizeForSearch(s.nickname) : '';
+          return sNameNorm.includes(targetStr) || sNickNorm.includes(targetStr) || s.rollNumber.toString() === targetStr;
         });
 
         if (match && !resolvedAffIds.includes(match.id)) {
@@ -495,7 +544,8 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
         const match = allStudentsPool.find(s => {
           if (s.id === row.student.id) return false;
           const sNameNorm = normalizeForSearch(s.name);
-          return sNameNorm.includes(targetStr) || s.rollNumber.toString() === targetStr;
+          const sNickNorm = s.nickname ? normalizeForSearch(s.nickname) : '';
+          return sNameNorm.includes(targetStr) || sNickNorm.includes(targetStr) || s.rollNumber.toString() === targetStr;
         });
 
         if (match && !resolvedAntiIds.includes(match.id) && !resolvedAffIds.includes(match.id)) {
@@ -514,15 +564,154 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
       row.student.antiAffinityDetails = resolvedAntiDetails;
     });
 
-    setParsedRows(preliminaryRows);
+    return preliminaryRows;
+  };
+
+  // Handle file selection with binary array buffer decoding (supporting XLSX, XLS, CSV, TXT)
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const buffer = event.target?.result as ArrayBuffer;
+      if (buffer) {
+        const text = decodeFileBuffer(buffer, file.name);
+        if (text) {
+          setRawText(text);
+          processRawText(text);
+        }
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const processRawText = (text: string, navigateToPreview = true) => {
+    const normalizedText = fixMojibake(text);
+    const matrix = parseCSVString(normalizedText);
+    if (matrix.length === 0) return;
+
+    setRawMatrix(matrix);
+
+    const detectedHeaderIndex = hasHeaders ? findHeaderRowIndex(matrix) : 0;
+    setHeaderRowIndex(detectedHeaderIndex);
+
+    const headers = hasHeaders 
+      ? matrix[detectedHeaderIndex] 
+      : matrix[0].map((_, i) => `Coluna ${i + 1}`);
+
+    const dataRows = (hasHeaders ? matrix.slice(detectedHeaderIndex + 1) : matrix)
+      .filter(row => row.some(c => c && c.trim().length > 0 && c.trim() !== '-'));
+
+    const initialMappings: ColumnMapping[] = headers.map((header, colIdx) => {
+      const sampleVals = dataRows.slice(0, 4).map(r => r[colIdx] || '').filter(Boolean);
+      const target = detectFieldFromHeader(header);
+      return {
+        csvHeader: header || `Coluna ${colIdx + 1}`,
+        targetField: target,
+        sampleValues: sampleVals,
+      };
+    });
+
+    // If no name column was mapped, identify candidate with text characters
+    const hasNameMapped = initialMappings.some(m => m.targetField === 'name');
+    if (!hasNameMapped && initialMappings.length > 0) {
+      const candidateIdx = initialMappings.findIndex(m => m.sampleValues.some(v => /[a-zA-Zá-úÁ-Ú]/.test(v)));
+      if (candidateIdx !== -1) {
+        initialMappings[candidateIdx].targetField = 'name';
+      } else {
+        initialMappings[0].targetField = 'name';
+      }
+    }
+
+    setColumnMappings(initialMappings);
+
+    // If name is ready and data exists, generate preview directly so user has ready-to-use mapping!
+    const isNameReady = initialMappings.some(m => m.targetField === 'name');
+    if (isNameReady && dataRows.length > 0) {
+      const baseRoll = importMode === 'append' ? existingCount + 1 : 1;
+      const pool = importMode === 'append' ? (existingStudents || []) : [];
+      const rows = buildRowsFromMappings(initialMappings, dataRows, baseRoll, pool);
+      setParsedRows(rows);
+
+      if (navigateToPreview) {
+        setStep('preview');
+      } else {
+        setStep('mapping');
+      }
+    } else {
+      setStep('mapping');
+    }
+  };
+
+  // Process rows from mapping to preview when user adjusts column mapping manually
+  const generatePreviewFromMapping = () => {
+    const dataRows = (hasHeaders ? rawMatrix.slice(headerRowIndex + 1) : rawMatrix)
+      .filter(row => row.some(c => c && c.trim().length > 0 && c.trim() !== '-'));
+    const baseRoll = importMode === 'append' ? existingCount + 1 : 1;
+    const pool = importMode === 'append' ? (existingStudents || []) : [];
+
+    const rows = buildRowsFromMappings(columnMappings, dataRows, baseRoll, pool);
+    setParsedRows(rows);
     setStep('preview');
+  };
+
+  // Re-apply automatic detection heuristic if user wants to reset their column mapping
+  const handleResetAutoDetection = () => {
+    if (rawMatrix.length === 0) return;
+    const headers = hasHeaders 
+      ? rawMatrix[headerRowIndex] 
+      : rawMatrix[0].map((_, i) => `Coluna ${i + 1}`);
+
+    const dataRows = (hasHeaders ? rawMatrix.slice(headerRowIndex + 1) : rawMatrix)
+      .filter(row => row.some(c => c && c.trim().length > 0 && c.trim() !== '-'));
+
+    const autoMappings: ColumnMapping[] = headers.map((header, colIdx) => {
+      const sampleVals = dataRows.slice(0, 4).map(r => r[colIdx] || '').filter(Boolean);
+      const target = detectFieldFromHeader(header);
+      return {
+        csvHeader: header || `Coluna ${colIdx + 1}`,
+        targetField: target,
+        sampleValues: sampleVals,
+      };
+    });
+
+    const hasNameMapped = autoMappings.some(m => m.targetField === 'name');
+    if (!hasNameMapped && autoMappings.length > 0) {
+      const candidateIdx = autoMappings.findIndex(m => m.sampleValues.some(v => /[a-zA-Zá-úÁ-Ú]/.test(v)));
+      if (candidateIdx !== -1) {
+        autoMappings[candidateIdx].targetField = 'name';
+      } else {
+        autoMappings[0].targetField = 'name';
+      }
+    }
+
+    setColumnMappings(autoMappings);
+  };
+
+  const handleSetImportMode = (newMode: 'append' | 'replace') => {
+    setImportMode(newMode);
+    if (rawMatrix.length > 0 && columnMappings.length > 0) {
+      const dataRows = (hasHeaders ? rawMatrix.slice(headerRowIndex + 1) : rawMatrix)
+        .filter(row => row.some(c => c && c.trim().length > 0 && c.trim() !== '-'));
+      const baseRoll = newMode === 'append' ? existingCount + 1 : 1;
+      const pool = newMode === 'append' ? (existingStudents || []) : [];
+
+      const currentSelections = new Map(parsedRows.map(r => [r.id, r.selected]));
+      const updatedRows = buildRowsFromMappings(columnMappings, dataRows, baseRoll, pool).map(r => ({
+        ...r,
+        selected: currentSelections.has(r.id) ? currentSelections.get(r.id)! : r.selected
+      }));
+      setParsedRows(updatedRows);
+    }
   };
 
   const handleDownloadTemplate = (format: 'xlsx' | 'csv' = 'xlsx') => {
     if (format === 'xlsx') {
-      downloadTeacherSpreadsheetExcel(classroom, institution);
+      downloadTeacherSpreadsheetExcel(classroom, institution, { includeCurrentStudents: false });
     } else {
-      downloadTeacherSpreadsheetCSV(classroom, institution);
+      downloadTeacherSpreadsheetCSV(classroom, institution, { includeCurrentStudents: false });
     }
   };
 
@@ -618,11 +807,11 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
                         Planilha Oficial do Professor Regente
                       </h4>
                       <span className="px-2 py-0.5 rounded-full bg-emerald-200/80 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-300 text-[10px] font-bold">
-                        Padrão Institucional
+                        Modelo Limpo com Listas Suspensas
                       </span>
                     </div>
                     <p className="text-xs text-emerald-900/80 dark:text-zinc-300 mt-1">
-                      Modelo pré-formatado com 3 abas, cores institucionais, validações e colunas para proximidade e necessidades especiais.
+                      Planilha em branco (sem alunos de exemplo), com dropdowns de seleção em cada célula para você preencher os alunos da sua turma.
                     </p>
                   </div>
                 </div>
@@ -641,8 +830,19 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
 
                   <button
                     type="button"
+                    onClick={() => handleDownloadTemplate('csv')}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-slate-300 dark:border-zinc-700 shadow-xs transition-all cursor-pointer"
+                    title="Baixar modelo simples em formato CSV limpo"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-500" />
+                    Modelo .CSV
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => handleDownloadTemplate('xlsx')}
                     className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                    title="Baixar planilha oficial formatada com menus suspensos em cada célula"
                   >
                     <Download className="w-4 h-4" />
                     Baixar Modelo .XLSX
@@ -713,20 +913,20 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
                       type="radio"
                       name="importMode"
                       checked={importMode === 'append'}
-                      onChange={() => setImportMode('append')}
+                      onChange={() => handleSetImportMode('append')}
                       className="text-emerald-600 focus:ring-emerald-500"
                     />
-                    <span>Adicionar à turma (+{existingCount} existentes)</span>
+                    <span>Adicionar à turma ({existingCount > 0 ? `+${existingCount} existentes` : 'novos'})</span>
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="radio"
                       name="importMode"
                       checked={importMode === 'replace'}
-                      onChange={() => setImportMode('replace')}
+                      onChange={() => handleSetImportMode('replace')}
                       className="text-emerald-600 focus:ring-emerald-500"
                     />
-                    <span className="text-amber-700 dark:text-amber-400 font-bold">Substituir todos</span>
+                    <span className="text-amber-700 dark:text-amber-400 font-bold">Substituir antigos</span>
                   </label>
                 </div>
               </div>
@@ -737,14 +937,26 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
           {/* STEP 2: COLUMN MAPPING */}
           {step === 'mapping' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 p-3 rounded-2xl text-xs text-emerald-950 dark:text-emerald-300">
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 p-3 rounded-2xl text-xs text-emerald-950 dark:text-emerald-300">
                 <span className="flex items-center gap-2 font-bold">
                   <Sliders className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  Mapeie as {columnMappings.length} colunas encontradas no arquivo para os atributos do aluno:
+                  <span>
+                    Mapeamento de Atributos: <strong>{columnMappings.filter(m => m.targetField !== 'none').length}</strong> de {columnMappings.length} colunas mapeadas
+                  </span>
                 </span>
-                <span className="text-[11px] text-emerald-800 dark:text-emerald-400/80 font-bold">
-                  {rawMatrix.length - (hasHeaders ? 1 : 0)} linhas detectadas
-                </span>
+                <div className="flex items-center gap-3 text-[11px]">
+                  <span className="text-emerald-800 dark:text-emerald-400/80 font-bold">
+                    {rawMatrix.length - (hasHeaders ? headerRowIndex + 1 : 0)} alunos encontrados
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleResetAutoDetection}
+                    className="px-2.5 py-1 bg-white dark:bg-zinc-800 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 rounded-lg hover:bg-emerald-100 dark:hover:bg-zinc-700 transition-colors font-bold cursor-pointer"
+                    title="Restaurar detecção automática de todas as colunas"
+                  >
+                    Redetectar Automaticamente
+                  </button>
+                </div>
               </div>
 
               <div className="border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden bg-white dark:bg-[#16161d] shadow-xs">
@@ -856,6 +1068,16 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStep('mapping')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+                    title="Ver ou modificar o mapeamento das colunas da planilha"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>Conferir / Mudar Mapeamento ({columnMappings.filter(m => m.targetField !== 'none').length})</span>
+                  </button>
+
                   <div className="relative">
                     <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
                     <input
@@ -866,6 +1088,93 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
                       className="pl-8 pr-3 py-1.5 bg-white dark:bg-[#121216] border border-slate-300 dark:border-zinc-700 rounded-xl text-xs text-slate-900 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Destination Mode Selector (Incluir vs Substituir) */}
+              <div className="bg-slate-50 dark:bg-[#181822] p-4 rounded-2xl border border-slate-200 dark:border-zinc-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-slate-500 dark:text-zinc-400" />
+                    <span>Como deseja aplicar estes alunos na turma?</span>
+                  </span>
+                  <span className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400">
+                    Turma atual: <strong>{existingCount}</strong> {existingCount === 1 ? 'aluno' : 'alunos'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Option 1: Append (Incluir) */}
+                  <button
+                    type="button"
+                    onClick={() => handleSetImportMode('append')}
+                    className={`flex items-start gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      importMode === 'append'
+                        ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 text-emerald-950 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-xs'
+                        : 'bg-white dark:bg-[#14141a] border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-bold text-xs mt-0.5 ${
+                      importMode === 'append'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
+                    }`}>
+                      <UserPlus className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">
+                          Incluir na turma
+                        </span>
+                        {importMode === 'append' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-200 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-300">
+                            Selecionado
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-zinc-400 mt-0.5 leading-snug">
+                        Adiciona os novos alunos sem apagar os <strong>{existingCount}</strong> já existentes. A turma ficará com <strong>{existingCount + parsedRows.filter(r => r.selected && r.isValid).length}</strong> alunos.
+                      </p>
+                    </div>
+                  </button>
+
+                  {/* Option 2: Replace (Substituir) */}
+                  <button
+                    type="button"
+                    onClick={() => handleSetImportMode('replace')}
+                    className={`flex items-start gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      importMode === 'replace'
+                        ? 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-500 text-amber-950 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs'
+                        : 'bg-white dark:bg-[#14141a] border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-400 hover:border-slate-300 dark:hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-bold text-xs mt-0.5 ${
+                      importMode === 'replace'
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
+                    }`}>
+                      <RefreshCw className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-bold text-slate-900 dark:text-zinc-100">
+                          Substituir os antigos
+                        </span>
+                        {importMode === 'replace' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-300">
+                            Selecionado
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-zinc-400 mt-0.5 leading-snug">
+                        {existingCount > 0 ? (
+                          <>Remove os <strong>{existingCount}</strong> alunos atuais e cadastra apenas os <strong>{parsedRows.filter(r => r.selected && r.isValid).length}</strong> desta planilha.</>
+                        ) : (
+                          <>Cadastra a nova lista de <strong>{parsedRows.filter(r => r.selected && r.isValid).length}</strong> alunos nesta turma.</>
+                        )}
+                      </p>
+                    </div>
+                  </button>
                 </div>
               </div>
 
@@ -1026,21 +1335,67 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
               <button
                 type="button"
                 onClick={() => setStep('mapping')}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-200 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-200 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Ajustar Mapeamento</span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleConfirmImport}
-                disabled={parsedRows.filter(r => r.selected && r.isValid).length === 0}
-                className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
-              >
-                <Check className="w-4 h-4" />
-                <span>Confirmar e Importar {parsedRows.filter(r => r.selected && r.isValid).length} Alunos</span>
-              </button>
+              <div className="flex flex-wrap items-center justify-end gap-2.5">
+                {/* Mode Selector Buttons */}
+                <div className="flex items-center p-1 bg-slate-200/80 dark:bg-zinc-800/90 rounded-xl gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSetImportMode('append')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      importMode === 'append'
+                        ? 'bg-white dark:bg-zinc-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+                    }`}
+                    title="Adicionar alunos sem apagar os que já estão na turma"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Incluir na turma</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSetImportMode('replace')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      importMode === 'replace'
+                        ? 'bg-white dark:bg-zinc-900 text-amber-700 dark:text-amber-400 shadow-xs'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+                    }`}
+                    title="Substituir os alunos antigos da turma pelos alunos desta planilha"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Substituir antigos</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmImport}
+                  disabled={parsedRows.filter(r => r.selected && r.isValid).length === 0}
+                  className={`flex items-center gap-2 px-5 py-2.5 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer ${
+                    importMode === 'replace'
+                      ? 'bg-amber-600 hover:bg-amber-700'
+                      : 'bg-emerald-600 hover:bg-emerald-700'
+                  }`}
+                >
+                  {importMode === 'replace' ? (
+                    <>
+                      <RefreshCw className="w-4 h-4" />
+                      <span>Confirmar Substituição ({parsedRows.filter(r => r.selected && r.isValid).length} Alunos)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Confirmar e Incluir {parsedRows.filter(r => r.selected && r.isValid).length} Alunos</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </>
           )}
 

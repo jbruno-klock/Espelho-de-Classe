@@ -230,22 +230,12 @@ export async function buildTeacherSpreadsheetExcelJS(
     // Add extra empty rows for new students
     const currentCount = classroom.students.length;
     for (let r = currentCount + 1; r <= Math.max(currentCount + 15, 35); r++) {
-      studentRowsData.push([r, '', '', '', 'Moderado', 'Regular', 'Normal', 'Normal', 'Não', 'Nenhuma', '', 'Indiferente', '', '', '', '', '', '', '']);
+      studentRowsData.push([r, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
     }
   } else {
-    // Standard realistic pedagogical samples
-    studentRowsData.push(
-      [1, 'Alice Monteiro', 'Lili', 'F', 'Calmo / Focado', 'Avançado', 'Normal', 'Normal', 'Não', 'Nenhuma', '-', 'Frente', 'Bernardo Silva; Caio Fernandes', 'Alta (+3)', 'Apoio Pedagógico & Monitoria', 'Gabriel Santos', 'Separação Obrigatória (-3)', 'Conversa Excessiva / Dispersão', 'Excelente liderança, ótima para atuar como monitora'],
-      [2, 'Bernardo Silva', 'Bê', 'M', 'Moderado', 'Regular', 'Precisa de Frente', 'Normal', 'Não', 'TDAH / Foco', 'Laudo TDAH e miopia 3.5 graus. Necessita sentar nas fileiras 1 ou 2 longe de janelas', 'Frente', 'Alice Monteiro', 'Alta (+3)', 'Apoio Pedagógico & Monitoria', 'Gabriel Santos', 'Separação Obrigatória (-3)', 'Conversa Excessiva / Dispersão', 'Rendimento dobra quando posicionado próximo de colegas focados'],
-      [3, 'Gabriel Santos', 'Biel', 'M', 'Muito Conversador', 'Regular', 'Normal', 'Normal', 'Não', 'Nenhuma', '-', 'Meio', '', '', '', 'Bernardo Silva; Alice Monteiro', 'Separação Obrigatória (-3)', 'Conversa Excessiva / Dispersão', 'Dispersa com muita facilidade em grupos de amigos'],
-      [4, 'Helena Castro', 'Lena', 'F', 'Calmo / Focado', 'Avançado', 'Normal', 'Normal', 'Sim', 'Cadeirante / Mobilidade', 'Utiliza cadeira de rodas. Requer carteira ampla no corredor lateral ou primeira fileira', 'Frente', 'Letícia Souza', 'Média (+2)', 'Trabalho em Dupla / Estudo', '', '', '', 'Acesso desimpedido à saída e ao quadro'],
-      [5, 'Lucas Ferreira', 'Luquinhas', 'M', 'Moderado', 'Regular', 'Normal', 'Normal', 'Não', 'Aluno Alto', 'Aluno com 1,91m de altura. Se sentar na frente, obstrui a visão dos colegas', 'Fundo', '', '', '', '', '', '', 'Preferencialmente fileiras do fundo para manter visão limpa da sala'],
-      [6, 'Mariana Ramos', 'Mari', 'F', 'Calmo / Focado', 'Precisa de Ajuda', 'Normal', 'Precisa de Frente', 'Não', 'Dificuldade Auditiva', 'Leve perda auditiva no ouvido esquerdo. Precisa sentar nas fileiras da frente pelo lado direito', 'Frente', 'Alice Monteiro', 'Alta (+3)', 'Inclusão & Acolhimento', 'Gabriel Santos', 'Evitar Vizinhança (-2)', 'Distração Mútua', 'Necessita boa proximidade vocal do professor']
-    );
-
-    // 25 blank lines ready for input with dropdowns
-    for (let r = 7; r <= 35; r++) {
-      studentRowsData.push([r, '', '', '', 'Moderado', 'Regular', 'Normal', 'Normal', 'Não', 'Nenhuma', '', 'Indiferente', '', '', '', '', '', '', '']);
+    // Pure blank template: absolutely no sample students, clean rows ready for teacher entry with dropdowns
+    for (let r = 1; r <= 40; r++) {
+      studentRowsData.push([r, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
     }
   }
 
@@ -648,12 +638,10 @@ export function downloadTeacherSpreadsheetCSV(
       ]);
     });
   } else {
-    rows.push([
-      1, 'Alice Monteiro', 'Lili', 'F', 'Calmo / Focado', 'Avançado', 'Normal', 'Normal', 'Não', 'Nenhuma', '-', 'Frente', 'Bernardo Silva; Caio Fernandes', 'Alta (+3)', 'Apoio Pedagógico & Monitoria', 'Gabriel Santos', 'Separação Obrigatória (-3)', 'Conversa Excessiva / Dispersão', 'Excelente aluna'
-    ]);
-    rows.push([
-      2, 'Bernardo Silva', 'Bê', 'M', 'Moderado', 'Regular', 'Precisa de Frente', 'Normal', 'Não', 'TDAH / Foco', 'Laudo TDAH', 'Frente', 'Alice Monteiro', 'Alta (+3)', 'Apoio Pedagógico & Monitoria', 'Gabriel Santos', 'Separação Obrigatória (-3)', 'Conversa Excessiva / Dispersão', 'Precisa de foco'
-    ]);
+    // Pure blank template: no sample students
+    for (let r = 1; r <= 40; r++) {
+      rows.push([r, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+    }
   }
 
   const csvBody = rows.map(r => r.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');

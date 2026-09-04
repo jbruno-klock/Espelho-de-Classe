@@ -78,9 +78,17 @@ export function decodeFileBuffer(buffer: ArrayBuffer, fileName: string): string 
   if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls') || lowerName.endsWith('.ods')) {
     try {
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
-      const firstSheetName = workbook.SheetNames[0];
-      if (!firstSheetName) return '';
-      const worksheet = workbook.Sheets[firstSheetName];
+      let targetSheetName = workbook.SheetNames[0];
+      // If there are multiple sheets, prioritize one named 'mapeamento', 'turma' or 'aluno'
+      const matchName = workbook.SheetNames.find(name => {
+        const n = normalizeForSearch(name);
+        return n.includes('mapeamento') || n.includes('turma') || n.includes('aluno');
+      });
+      if (matchName) {
+        targetSheetName = matchName;
+      }
+      if (!targetSheetName) return '';
+      const worksheet = workbook.Sheets[targetSheetName];
       // Convert worksheet to semicolon-delimited CSV with UTF-8 support
       const csv = XLSX.utils.sheet_to_csv(worksheet, { FS: ';', blankrows: false });
       return fixMojibake(csv.normalize('NFC'));
@@ -124,3 +132,52 @@ export function decodeFileBuffer(buffer: ArrayBuffer, fileName: string): string 
 
   return fixMojibake(text.normalize('NFC'));
 }
+
+/**
+ * Automatically detects the true header row in a spreadsheet matrix.
+ * Skips institutional header banners, instruction texts, or empty metadata rows.
+ */
+export function findHeaderRowIndex(matrix: string[][]): number {
+  if (!matrix || matrix.length === 0) return 0;
+
+  const keywords = [
+    'nome', 'aluno', 'estudante', 'chamada', 'numero', 'num', 'nº', 'matricula', 'ra',
+    'genero', 'sexo', 'comportamento', 'perfil', 'conduta', 'nivel', 'academico', 'desempenho',
+    'visao', 'visual', 'audicao', 'auditivo', 'auditiva', 'mobilidade', 'cadeirante',
+    'laudo', 'inclusao', 'fileira', 'afinidade', 'perto', 'desafinidade', 'afastar',
+    'separacao', 'distanciamento', 'observacao', 'apelido', 'notas', 'parceria'
+  ];
+
+  let bestIndex = 0;
+  let maxScore = -1;
+  const maxRowsToCheck = Math.min(matrix.length, 15);
+
+  for (let r = 0; r < maxRowsToCheck; r++) {
+    const row = matrix[r];
+    if (!row || row.length === 0) continue;
+
+    const nonEmptyCells = row.filter(c => c && c.trim().length > 0);
+    // If only 1 cell has content in a table with several columns, it is likely a title banner
+    if (nonEmptyCells.length <= 1 && matrix.length > r + 1) {
+      continue;
+    }
+
+    let keywordMatches = 0;
+    for (const cell of nonEmptyCells) {
+      const norm = normalizeForSearch(cell);
+      if (keywords.some(k => norm.includes(k))) {
+        keywordMatches++;
+      }
+    }
+
+    // A true header row has keyword matches and multiple columns
+    const score = (keywordMatches * 15) + nonEmptyCells.length;
+    if (score > maxScore && keywordMatches >= 1) {
+      maxScore = score;
+      bestIndex = r;
+    }
+  }
+
+  return bestIndex;
+}
+
