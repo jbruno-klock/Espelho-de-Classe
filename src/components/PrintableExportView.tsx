@@ -391,7 +391,7 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
 
           {/* 3. LAYOUT DAS MESAS: Minimalista Premium */}
           <div
-            className={`grid ${cols >= 12 ? 'gap-1' : cols >= 8 ? 'gap-1.5' : 'gap-2 sm:gap-3'}`}
+            className={`grid ${cols >= 15 ? 'gap-0.5' : cols >= 12 ? 'gap-1' : cols >= 8 ? 'gap-1.5' : 'gap-2 sm:gap-3'}`}
             style={{
               gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
             }}
@@ -402,6 +402,7 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                 const c = viewPerspective === 'teacher' ? cols - 1 - cIdx : cIdx;
                 const deskId = `r${r}_c${c}`;
                 const isActive = activeDesks[deskId] !== false;
+                const isUltraCompact = cols >= 15 || rows >= 15;
                 const isCompact = cols >= 12 || rows >= 12;
                 const isMediumCompact = cols >= 8 || rows >= 8;
 
@@ -410,7 +411,7 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                   return (
                     <div
                       key={deskId}
-                      className={`${isCompact ? 'h-14' : isMediumCompact ? 'h-16' : 'h-20'} invisible pointer-events-none`}
+                      className={`${isUltraCompact ? 'h-10' : isCompact ? 'h-14' : isMediumCompact ? 'h-16' : 'h-20'} invisible pointer-events-none`}
                       aria-hidden="true"
                     />
                   );
@@ -424,9 +425,9 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                   return (
                     <div
                       key={deskId}
-                      className={`${isCompact ? 'h-14 p-1' : isMediumCompact ? 'h-16 p-1.5' : 'h-20 p-2.5'} rounded-xl border border-dashed border-slate-200 bg-slate-100/60 flex flex-col items-center justify-center text-center transition-all`}
+                      className={`${isUltraCompact ? 'h-10 p-0.5' : isCompact ? 'h-14 p-1' : isMediumCompact ? 'h-16 p-1.5' : 'h-20 p-2.5'} rounded-lg sm:rounded-xl border border-dashed border-slate-200 bg-slate-100/60 flex flex-col items-center justify-center text-center transition-all`}
                     >
-                      <span className={`${isCompact ? 'text-[9px]' : 'text-[11px]'} font-medium text-slate-400 tracking-wide`}>
+                      <span className={`${isUltraCompact ? 'text-[7.5px]' : isCompact ? 'text-[9px]' : 'text-[11px]'} font-medium text-slate-400 tracking-wide`}>
                         Vazia
                       </span>
                     </div>
@@ -437,11 +438,11 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                 return (
                   <div
                     key={deskId}
-                    className={`${isCompact ? 'h-14 p-1' : isMediumCompact ? 'h-16 p-1.5' : 'h-20 p-2.5'} rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col items-center justify-center text-center transition-all hover:border-slate-300`}
+                    className={`${isUltraCompact ? 'h-10 p-0.5' : isCompact ? 'h-14 p-1' : isMediumCompact ? 'h-16 p-1.5' : 'h-20 p-2.5'} rounded-lg sm:rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col items-center justify-center text-center transition-all hover:border-slate-300`}
                   >
                     {/* Número da chamada centralizado (condicional) */}
                     {showRollNumbers && (
-                      <span className={`${isCompact ? 'text-[8px] px-1.5 py-0.2 mb-0.5' : 'text-[10px] px-2 py-0.5 mb-1.5'} font-bold text-slate-600 bg-slate-100 rounded-full inline-flex items-center justify-center leading-none shrink-0`}>
+                      <span className={`${isUltraCompact ? 'text-[6.5px] px-1 py-0 mb-0.5' : isCompact ? 'text-[8px] px-1.5 py-0.2 mb-0.5' : 'text-[10px] px-2 py-0.5 mb-1.5'} font-bold text-slate-600 bg-slate-100 rounded-full inline-flex items-center justify-center leading-none shrink-0`}>
                         Nº {student.rollNumber}
                       </span>
                     )}
@@ -450,7 +451,9 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                     <div className="w-full px-0.5 overflow-hidden flex flex-col items-center justify-center">
                       <p 
                         className={`${
-                          isCompact 
+                          isUltraCompact
+                            ? (showRollNumbers ? 'text-[7px]' : 'text-[8px]')
+                            : isCompact 
                             ? (showRollNumbers ? 'text-[8.5px]' : 'text-[9.5px]') 
                             : isMediumCompact 
                             ? (showRollNumbers ? 'text-[10px]' : 'text-[11.5px]') 
@@ -460,7 +463,7 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                       >
                         {student.name}
                       </p>
-                      {student.nickname && !isCompact && (
+                      {student.nickname && !isCompact && !isUltraCompact && (
                         <p className="text-[9px] text-slate-500 italic truncate mt-0.5 text-center">
                           ({student.nickname})
                         </p>

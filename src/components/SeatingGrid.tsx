@@ -34,6 +34,7 @@ interface SeatingGridProps {
   onToggleLockDesk: (deskId: string) => void;
   onSelectStudent: (student: Student) => void;
   onOpenConflictModal?: () => void;
+  onAutoResolveAll?: () => void;
 }
 
 export const SeatingGrid: React.FC<SeatingGridProps> = ({
@@ -45,6 +46,7 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
   onToggleLockDesk,
   onSelectStudent,
   onOpenConflictModal,
+  onAutoResolveAll,
 }) => {
   const [selectedDeskId, setSelectedDeskId] = useState<string | null>(null);
   const [draggedStudentId, setDraggedStudentId] = useState<string | null>(null);
@@ -157,6 +159,7 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
   const isHighDensity = cols >= 6;
   const isVeryHighDensity = cols >= 8;
   const isUltraDensity = cols >= 11;
+  const isExtremeDensity = cols >= 15;
 
   const getDeskCoordinates = (deskId: string) => {
     const match = deskId.match(/r(\d+)_c(\d+)/);
@@ -281,26 +284,42 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
             </div>
           </div>
         ) : conflicts.length > 0 ? (
-          <div className="w-full mb-3.5 p-3 bg-amber-50/80 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-800/60 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs shadow-xs">
+          <div className="w-full mb-3.5 p-3 bg-amber-50/90 dark:bg-amber-950/25 border border-amber-300 dark:border-amber-800/60 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs shadow-xs">
             <div className="flex items-center gap-2.5 text-amber-900 dark:text-amber-300">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <span className="font-bold">
-                {conflicts.length} {conflicts.length === 1 ? 'conflito gerado no mapa' : 'conflitos gerados no mapa'}.
+                {conflicts.length} {conflicts.length === 1 ? 'conflito detectado' : 'conflitos detectados'}.
               </span>
-              <span className="text-slate-600 dark:text-zinc-400 hidden sm:inline">
-                Clique nas carteiras com aviso para ver sugestões de troca ou abra o diagnóstico completo.
+              <span className="text-slate-600 dark:text-zinc-400 hidden md:inline">
+                Resolva automaticamente em 1 clique ou avalie as sugestões isoladas.
               </span>
             </div>
-            {onOpenConflictModal && (
-              <button
-                type="button"
-                onClick={onOpenConflictModal}
-                className="flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 ml-auto sm:ml-0"
-              >
-                <Lightbulb className="w-3.5 h-3.5" />
-                <span>Ver Sugestões de Correção</span>
-              </button>
-            )}
+            <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0 flex-wrap">
+              {onAutoResolveAll && (
+                <button
+                  id="grid-auto-resolve-all-btn"
+                  type="button"
+                  onClick={onAutoResolveAll}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs group"
+                  title="Executar permutações automáticas para zerar todos os conflitos"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-200 group-hover:rotate-12 transition-transform" />
+                  <span>Resolver Todos Automaticamente</span>
+                </button>
+              )}
+              {onOpenConflictModal && (
+                <button
+                  id="grid-view-suggestions-btn"
+                  type="button"
+                  onClick={onOpenConflictModal}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 border border-slate-300 dark:border-zinc-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+                  title="Abrir diagnóstico para analisar e aplicar cada sugestão isoladamente"
+                >
+                  <Lightbulb className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Ver Sugestões Isoladas</span>
+                </button>
+              )}
+            </div>
           </div>
         ) : null}
 
@@ -308,7 +327,9 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
         <div className="w-full flex justify-center overflow-x-auto pb-2">
           <div
             className={`grid p-2 sm:p-3 md:p-4 bg-slate-50 dark:bg-[#0a0a0d]/80 rounded-2xl border border-slate-200 dark:border-zinc-800/60 shadow-inner w-full ${
-              isUltraDensity
+              isExtremeDensity
+                ? 'gap-1'
+                : isUltraDensity
                 ? 'gap-1 sm:gap-1.5'
                 : isVeryHighDensity 
                 ? 'gap-1.5 sm:gap-2' 
@@ -317,8 +338,8 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                 : 'gap-2.5 sm:gap-3.5'
             }`}
             style={{
-              gridTemplateColumns: `repeat(${cols}, minmax(${cols >= 12 ? '48px' : cols >= 9 ? '56px' : '0'}, 1fr))`,
-              minWidth: cols >= 12 ? `${cols * 50}px` : cols >= 9 ? `${cols * 58}px` : '100%',
+              gridTemplateColumns: `repeat(${cols}, minmax(${cols >= 15 ? '40px' : cols >= 12 ? '48px' : cols >= 9 ? '56px' : '0'}, 1fr))`,
+              minWidth: cols >= 15 ? `${cols * 42}px` : cols >= 12 ? `${cols * 50}px` : cols >= 9 ? `${cols * 58}px` : '100%',
             }}
           >
             {Array.from({ length: rows }).map((_, r) =>
@@ -332,8 +353,12 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                     <div
                       key={deskId}
                       className={`${
-                        isUltraDensity ? 'min-h-[64px] sm:min-h-[76px]' : 'min-h-[72px] sm:min-h-[88px]'
-                      } rounded-xl border border-dashed border-slate-300 dark:border-zinc-800/50 bg-slate-100/60 dark:bg-zinc-900/20 flex items-center justify-center text-[8px] sm:text-[10px] font-bold text-slate-400 dark:text-zinc-500 select-none`}
+                        isExtremeDensity
+                          ? 'min-h-[56px] sm:min-h-[64px]'
+                          : isUltraDensity
+                          ? 'min-h-[64px] sm:min-h-[76px]'
+                          : 'min-h-[72px] sm:min-h-[88px]'
+                      } rounded-xl border border-dashed border-slate-300 dark:border-zinc-800/50 bg-slate-100/60 dark:bg-zinc-900/20 flex items-center justify-center text-[7.5px] sm:text-[9px] font-bold text-slate-400 dark:text-zinc-500 select-none`}
                     >
                       Corredor
                     </div>
@@ -418,7 +443,9 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                     draggable={!!student}
                     onDragStart={(e) => student && handleDragStartDesk(e, deskId, student.id)}
                     className={`${
-                      isUltraDensity
+                      isExtremeDensity
+                        ? 'min-h-[56px] sm:min-h-[64px] md:min-h-[72px] p-0.5 sm:p-1'
+                        : isUltraDensity
                         ? 'min-h-[64px] sm:min-h-[76px] md:min-h-[84px] p-1 sm:p-1.5'
                         : isHighDensity
                         ? 'min-h-[76px] sm:min-h-[92px] md:min-h-[100px] p-1 sm:p-2'
@@ -443,7 +470,7 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                     {/* Desk Top Bar: Position Coordinate & Lock/Remove */}
                     <div className="flex items-center justify-between text-[9px] sm:text-[10px]">
                       <span className={`font-extrabold text-slate-700 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800/80 ${
-                        isUltraDensity ? 'px-0.5 py-0.2 text-[7px] sm:text-[8px]' : 'px-1 py-0.2 sm:px-1.5 sm:py-0.5 text-[8px] sm:text-[9px]'
+                        isExtremeDensity ? 'px-0.5 py-0 text-[6.5px] sm:text-[7.5px]' : isUltraDensity ? 'px-0.5 py-0.2 text-[7px] sm:text-[8px]' : 'px-1 py-0.2 sm:px-1.5 sm:py-0.5 text-[8px] sm:text-[9px]'
                       } rounded-md border border-slate-200 dark:border-zinc-700/40`}>
                         F{r + 1}•C{c + 1}
                       </span>
@@ -485,7 +512,7 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                         <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
                           <div
                             className={`${
-                              isUltraDensity ? 'w-3.5 h-3.5 sm:w-4 sm:h-4 text-[8px]' : 'w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-[9px] sm:text-[10px]'
+                              isExtremeDensity ? 'w-3 h-3 sm:w-3.5 sm:h-3.5 text-[7px]' : isUltraDensity ? 'w-3.5 h-3.5 sm:w-4 sm:h-4 text-[8px]' : 'w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-[9px] sm:text-[10px]'
                             } rounded-md sm:rounded-lg flex items-center justify-center text-white font-bold shrink-0 shadow-xs`}
                             style={{ backgroundColor: student.avatarColor || '#6366f1' }}
                           >
@@ -493,7 +520,7 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className={`${
-                              isUltraDensity ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-xs'
+                              isExtremeDensity ? 'text-[8px] sm:text-[8.5px]' : isUltraDensity ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-xs'
                             } font-bold text-slate-900 dark:text-zinc-100 truncate leading-tight`}>
                               {student.name.split(' ')[0]} {isHighDensity ? '' : (student.name.split(' ')[1] || '')}
                             </p>

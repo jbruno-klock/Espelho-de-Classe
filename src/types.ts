@@ -169,6 +169,14 @@ export interface GenerationOptions {
   respectFixedDesks: boolean;
 }
 
+export interface AlphabeticalGenerationOptions {
+  direction?: 'columns' | 'rows'; // 'columns' = por fileiras (frente ao fundo); 'rows' = por linhas (esquerda à direita)
+  respectFixedDesks?: boolean; // manter alunos em carteiras travadas com cadeado
+  sortOrder?: 'asc' | 'desc'; // 'asc' = A -> Z, 'desc' = Z -> A
+  sortBy?: 'name' | 'rollNumber'; // 'name' = nome alfabético, 'rollNumber' = número de chamada
+  respectSpecialNeeds?: boolean; // priorizar alunos com necessidades especiais nas fileiras da frente
+}
+
 export interface ConflictSuggestion {
   id: string;
   conflictId: string;

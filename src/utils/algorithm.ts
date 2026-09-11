@@ -1,4 +1,4 @@
-import { Classroom, Student, GenerationOptions, GenerationReport, ConflictDiagnostic, ConflictSuggestion, CanBeNearLevel, CannotBeNearLevel } from '../types';
+import { Classroom, Student, GenerationOptions, GenerationReport, ConflictDiagnostic, ConflictSuggestion, CanBeNearLevel, CannotBeNearLevel, AlphabeticalGenerationOptions } from '../types';
 
 export interface DeskPosition {
   id: string;
@@ -1083,6 +1083,143 @@ export function runSeatingOptimizer(
   return {
     seatingMap: globalBestSeating,
     report: finalReport,
+  };
+}
+
+/**
+ * Organiza a distribuição dos estudantes nas carteiras ativas em ordem alfabética.
+ * Suporta disposição por fileiras (vertical: coluna por coluna, frente ao fundo) ou por linhas (horizontal),
+ * com respeito opcional a carteiras travadas (com cadeado) e alunos com necessidades de inclusão.
+ */
+export function generateAlphabeticalSeating(
+  classroom: Classroom,
+  options: AlphabeticalGenerationOptions = {}
+): {
+  seatingMap: Record<string, string | null>;
+  report: GenerationReport;
+  placedCount: number;
+  totalStudents: number;
+} {
+  const {
+    direction = 'columns',
+    respectFixedDesks = true,
+    sortOrder = 'asc',
+    sortBy = 'name',
+    respectSpecialNeeds = false,
+  } = options;
+
+  const activeDesks = getActiveDesks(classroom);
+  const existingSeating = classroom.seatingMap || {};
+  const lockedDesks = classroom.lockedDesks || {};
+  const students = [...classroom.students];
+
+  // 1. Sort active desks according to chosen direction
+  if (direction === 'columns') {
+    // Por Fileiras: Coluna por coluna, da frente para o fundo
+    // Coluna 0 (row 0, 1, 2...), depois Coluna 1 (row 0, 1, 2...), etc.
+    activeDesks.sort((a, b) => {
+      if (a.col !== b.col) return a.col - b.col;
+      return a.row - b.row;
+    });
+  } else {
+    // Por Linhas: Linha por linha, da esquerda para a direita
+    // Linha 0 (col 0, 1, 2...), depois Linha 1 (col 0, 1, 2...), etc.
+    activeDesks.sort((a, b) => {
+      if (a.row !== b.row) return a.row - b.row;
+      return a.col - b.col;
+    });
+  }
+
+  // 2. Initialize new seating map with null for all grid coordinates
+  const newSeating: Record<string, string | null> = {};
+  const maxRows = classroom.roomConfig?.rows || 6;
+  const maxCols = classroom.roomConfig?.cols || 6;
+  for (let r = 0; r < maxRows; r++) {
+    for (let c = 0; c < maxCols; c++) {
+      newSeating[`r${r}_c${c}`] = null;
+    }
+  }
+
+  // 3. Process locked desks
+  const lockedStudentIds = new Set<string>();
+  const availableDesks: DeskPosition[] = [];
+
+  for (const desk of activeDesks) {
+    if (respectFixedDesks && lockedDesks[desk.id] && existingSeating[desk.id]) {
+      const studentId = existingSeating[desk.id]!;
+      newSeating[desk.id] = studentId;
+      lockedStudentIds.add(studentId);
+    } else if (respectFixedDesks && lockedDesks[desk.id]) {
+      newSeating[desk.id] = null;
+    } else {
+      availableDesks.push(desk);
+    }
+  }
+
+  // 4. Filter available students
+  let studentsToPlace = students.filter(s => !lockedStudentIds.has(s.id));
+
+  // If respectSpecialNeeds is enabled, students with special needs (front) can be placed in the frontmost available desks first
+  let specialNeedsStudents: Student[] = [];
+  if (respectSpecialNeeds) {
+    specialNeedsStudents = studentsToPlace.filter(s => 
+      (Array.isArray(s.specialNeeds) && s.specialNeeds.length > 0) ||
+      s.visionNeeds === 'needs_front' ||
+      s.hearingNeeds === 'needs_front' ||
+      s.reducedMobility ||
+      s.preferredRow === 'front'
+    );
+    const specialIds = new Set(specialNeedsStudents.map(s => s.id));
+    studentsToPlace = studentsToPlace.filter(s => !specialIds.has(s.id));
+  }
+
+  // Helper to sort students
+  const sortStudents = (list: Student[]) => {
+    return [...list].sort((a, b) => {
+      if (sortBy === 'rollNumber') {
+        const numA = typeof a.rollNumber === 'number' ? a.rollNumber : 9999;
+        const numB = typeof b.rollNumber === 'number' ? b.rollNumber : 9999;
+        if (numA !== numB) {
+          return sortOrder === 'desc' ? numB - numA : numA - numB;
+        }
+      }
+      const comp = a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
+      return sortOrder === 'desc' ? -comp : comp;
+    });
+  };
+
+  const sortedSpecial = sortStudents(specialNeedsStudents);
+  const sortedGeneral = sortStudents(studentsToPlace);
+  const finalOrderedStudents = [...sortedSpecial, ...sortedGeneral];
+
+  // 5. Fill available desks
+  let placedCount = lockedStudentIds.size;
+  for (let i = 0; i < availableDesks.length; i++) {
+    const desk = availableDesks[i];
+    if (i < finalOrderedStudents.length) {
+      newSeating[desk.id] = finalOrderedStudents[i].id;
+      placedCount++;
+    } else {
+      newSeating[desk.id] = null;
+    }
+  }
+
+  // 6. Generate diagnostic report
+  const report = generateReport(newSeating, classroom, {
+    mode: 'balanced',
+    antiAffinityWeight: 8,
+    affinityWeight: 8,
+    specialNeedsWeight: 10,
+    separateTalkativeWeight: 8,
+    avoidIsolatedStudents: true,
+    respectFixedDesks,
+  });
+
+  return {
+    seatingMap: newSeating,
+    report,
+    placedCount,
+    totalStudents: classroom.students.length,
   };
 }
 

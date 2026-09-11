@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
-import { Classroom, Student, StudentRelation, GenerationOptions, GenerationReport, RoomConfig, Institution, AppUser, SeatingPlanCategory, SavedSeatingPlan } from './types';
+import { Classroom, Student, StudentRelation, GenerationOptions, GenerationReport, RoomConfig, Institution, AppUser, SeatingPlanCategory, SavedSeatingPlan, AlphabeticalGenerationOptions } from './types';
 import { INITIAL_CLASSROOMS, INITIAL_INSTITUTIONS, INITIAL_USERS, createDefaultRoomConfig } from './utils/sampleData';
-import { runSeatingOptimizer, generateReport, autoResolveAllConflicts } from './utils/algorithm';
+import { runSeatingOptimizer, generateReport, autoResolveAllConflicts, generateAlphabeticalSeating } from './utils/algorithm';
 import { exportClassroomToCSV, exportBackupJSON, exportToPdf } from './utils/exportUtils';
 import {
   ensureClassroomPlans,
@@ -45,6 +45,7 @@ import { InstitutionModal } from './components/InstitutionModal';
 import { UserModal } from './components/UserModal';
 import { ClearMapModal } from './components/ClearMapModal';
 import { ResetDataModal } from './components/ResetDataModal';
+import { AlphabeticalSeatingModal } from './components/AlphabeticalSeatingModal';
 
 const STORAGE_KEY_CLASSROOMS = 'espelho_classe_data_v2';
 const STORAGE_KEY_INSTITUTIONS = 'espelho_institutions_v2';
@@ -266,10 +267,12 @@ export default function App() {
   const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
+  const [userModalTab, setUserModalTab] = useState<'form' | 'credentials'>('form');
 
-  // Clear Map and Reset Data Modals (Replaces window.confirm for iframe reliability)
+  // Clear Map, Reset Data, and Alphabetical Seating Modals
   const [isClearMapModalOpen, setIsClearMapModalOpen] = useState(false);
   const [isResetDataModalOpen, setIsResetDataModalOpen] = useState(false);
+  const [isAlphabeticalModalOpen, setIsAlphabeticalModalOpen] = useState(false);
 
   // Save changes to localStorage
   useEffect(() => {
@@ -484,6 +487,46 @@ export default function App() {
         setIsGenerating(false);
       }
     }, 400);
+  };
+
+  // Run Alphabetical Seating Generator
+  const handleGenerateAlphabetical = (options: AlphabeticalGenerationOptions = {}) => {
+    if (!activeClassroom || activeClassroom.students.length === 0) return;
+
+    setIsGenerating(true);
+
+    setTimeout(() => {
+      try {
+        const { seatingMap, report, placedCount, totalStudents } = generateAlphabeticalSeating(
+          activeClassroom,
+          options
+        );
+
+        updateActiveClassroom(prev => ({
+          ...prev,
+          seatingMap,
+          updatedAt: Date.now(),
+        }));
+
+        setPlanFeedback(`Espelho organizado por ordem alfabética (${placedCount} alunos alocados)!`);
+        setTimeout(() => setPlanFeedback(null), 3500);
+
+        try {
+          confetti({
+            particleCount: 75,
+            spread: 65,
+            origin: { y: 0.6 },
+          });
+        } catch {
+          // ignore
+        }
+      } catch (err) {
+        console.error('Alphabetical generator error:', err);
+      } finally {
+        setIsGenerating(false);
+        setIsAlphabeticalModalOpen(false);
+      }
+    }, 300);
   };
 
   // Manual Desk Actions
@@ -966,10 +1009,12 @@ export default function App() {
             onDeleteInstitution={handleDeleteInstitution}
             onAddUser={() => {
               setEditingUser(null);
+              setUserModalTab('form');
               setIsUserModalOpen(true);
             }}
-            onEditUser={(u) => {
+            onEditUser={(u, tab) => {
               setEditingUser(u);
+              setUserModalTab(tab || 'form');
               setIsUserModalOpen(true);
             }}
             onDeleteUser={handleDeleteUser}
@@ -1002,6 +1047,8 @@ export default function App() {
               onClearSeating={handleClearSeating}
               isGenerating={isGenerating}
               onOpenConflictModal={() => setIsConflictModalOpen(true)}
+              onOpenAlphabeticalModal={() => setIsAlphabeticalModalOpen(true)}
+              onGenerateAlphabeticalDirect={(direction) => handleGenerateAlphabetical({ direction, respectFixedDesks: true })}
             />
 
             <SeatingGrid
@@ -1016,6 +1063,7 @@ export default function App() {
                 setIsStudentModalOpen(true);
               }}
               onOpenConflictModal={() => setIsConflictModalOpen(true)}
+              onAutoResolveAll={handleAutoResolveAllConflicts}
             />
           </div>
         )}
@@ -1176,6 +1224,16 @@ export default function App() {
         onDelete={handleDeleteUser}
         institutions={institutions}
         initialData={editingUser}
+        initialTab={userModalTab}
+      />
+
+      {/* Alphabetical Seating Modal */}
+      <AlphabeticalSeatingModal
+        isOpen={isAlphabeticalModalOpen}
+        onClose={() => setIsAlphabeticalModalOpen(false)}
+        classroom={activeClassroom}
+        onConfirm={handleGenerateAlphabetical}
+        isGenerating={isGenerating}
       />
 
       {/* Clear Map Confirmation Modal */}

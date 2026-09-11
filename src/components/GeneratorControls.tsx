@@ -13,7 +13,10 @@ import {
   ChevronUp,
   HeartHandshake,
   HelpCircle,
-  Lightbulb
+  Lightbulb,
+  ArrowDownAZ,
+  Columns,
+  Rows
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Classroom, GenerationOptions, GenerationReport } from '../types';
@@ -25,6 +28,8 @@ interface GeneratorControlsProps {
   onClearSeating: () => void;
   isGenerating: boolean;
   onOpenConflictModal: () => void;
+  onOpenAlphabeticalModal: () => void;
+  onGenerateAlphabeticalDirect?: (direction: 'columns' | 'rows') => void;
 }
 
 export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
@@ -34,9 +39,12 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
   onClearSeating,
   isGenerating,
   onOpenConflictModal,
+  onOpenAlphabeticalModal,
+  onGenerateAlphabeticalDirect,
 }) => {
   const [mode, setMode] = useState<GenerationOptions['mode']>('balanced');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isAlphaDropdownOpen, setIsAlphaDropdownOpen] = useState(false);
   const [antiAffinityWeight, setAntiAffinityWeight] = useState(9);
   const [affinityWeight, setAffinityWeight] = useState(8);
   const [specialNeedsWeight, setSpecialNeedsWeight] = useState(10);
@@ -148,7 +156,7 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
             onClick={onClearSeating}
             className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-zinc-400 dark:hover:text-zinc-200 dark:hover:bg-[#18181f] rounded-xl transition-colors flex items-center gap-1.5 border border-slate-200 dark:border-zinc-800/60 cursor-pointer"
@@ -156,6 +164,100 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
             <RotateCcw className="w-3.5 h-3.5" />
             Limpar Mapa
           </button>
+
+          {/* Botão de Ordem Alfabética com Menu Rápido e Modal */}
+          <div className="relative inline-flex items-center">
+            <div className="inline-flex items-center rounded-xl bg-indigo-50 hover:bg-indigo-100/90 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 border border-indigo-200 dark:border-indigo-800/50 shadow-2xs transition-all">
+              <button
+                id="btn-open-alphabetical-modal"
+                type="button"
+                onClick={onOpenAlphabeticalModal}
+                disabled={isGenerating || classroom.students.length === 0}
+                className="px-3 py-2 text-xs font-bold text-indigo-700 hover:text-indigo-800 dark:text-indigo-300 dark:hover:text-indigo-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Gerar espelho em ordem alfabética (A-Z)"
+              >
+                <ArrowDownAZ className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span>Ordem Alfabética</span>
+              </button>
+
+              <button
+                id="btn-toggle-alphabetical-dropdown"
+                type="button"
+                onClick={() => setIsAlphaDropdownOpen(!isAlphaDropdownOpen)}
+                disabled={isGenerating || classroom.students.length === 0}
+                className="px-1.5 py-2 border-l border-indigo-200/80 dark:border-indigo-800/50 text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-200 cursor-pointer disabled:opacity-50"
+                title="Opções rápidas de ordem alfabética"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Dropdown Menu */}
+            {isAlphaDropdownOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setIsAlphaDropdownOpen(false)} 
+                />
+                <div className="absolute right-0 top-full mt-1.5 z-50 w-56 rounded-2xl bg-white dark:bg-[#18181f] border border-slate-200 dark:border-zinc-800 shadow-xl p-1.5 text-xs animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-2.5 py-1 text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
+                    Geração Rápida
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAlphaDropdownOpen(false);
+                      if (onGenerateAlphabeticalDirect) {
+                        onGenerateAlphabeticalDirect('columns');
+                      } else {
+                        onOpenAlphabeticalModal();
+                      }
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center gap-2 text-slate-700 dark:text-zinc-200 cursor-pointer font-medium"
+                  >
+                    <Columns className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">Por Fileiras (Vertical)</div>
+                      <div className="text-[10px] text-slate-500 dark:text-zinc-400">Coluna por coluna, da frente ao fundo</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAlphaDropdownOpen(false);
+                      if (onGenerateAlphabeticalDirect) {
+                        onGenerateAlphabeticalDirect('rows');
+                      } else {
+                        onOpenAlphabeticalModal();
+                      }
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 flex items-center gap-2 text-slate-700 dark:text-zinc-200 cursor-pointer font-medium"
+                  >
+                    <Rows className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                    <div>
+                      <div className="font-bold text-xs">Por Linhas (Horizontal)</div>
+                      <div className="text-[10px] text-slate-500 dark:text-zinc-400">Esquerda à direita, da frente ao fundo</div>
+                    </div>
+                  </button>
+
+                  <div className="my-1 border-t border-slate-100 dark:border-zinc-800" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAlphaDropdownOpen(false);
+                      onOpenAlphabeticalModal();
+                    }}
+                    className="w-full text-left px-2.5 py-2 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/50 flex items-center gap-2 text-indigo-700 dark:text-indigo-300 cursor-pointer font-bold"
+                  >
+                    <Sliders className="w-3.5 h-3.5 shrink-0" />
+                    <span>Personalizar e Ver Prévia...</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           <button
             onClick={handleGenerate}

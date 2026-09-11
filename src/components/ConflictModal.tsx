@@ -99,20 +99,30 @@ export const ConflictModal: React.FC<ConflictModalProps> = ({
             </div>
           ) : (
             <>
-              {/* Top Quick Status & Auto-resolve bar if multiple conflicts */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 bg-slate-100/70 dark:bg-[#181820] rounded-2xl border border-slate-200 dark:border-zinc-800">
-                <div className="flex items-center gap-2">
-                  <Lightbulb className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                  <span className="text-xs text-slate-700 dark:text-zinc-300 font-medium">
-                    Escolha uma das correções sugeridas abaixo para aplicar com 1 clique:
-                  </span>
+              {/* Top Quick Status & Auto-resolve bar */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-indigo-50/90 dark:bg-indigo-950/40 rounded-2xl border border-indigo-200 dark:border-indigo-800/60 shadow-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-xl bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
+                    <Lightbulb className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs text-indigo-950 dark:text-indigo-200 font-bold block">
+                      Resolução de Conflitos
+                    </span>
+                    <span className="text-[11px] text-slate-600 dark:text-zinc-400">
+                      Resolva todos de uma vez com o botão ao lado ou aplique as sugestões isoladas abaixo.
+                    </span>
+                  </div>
                 </div>
-                {onAutoResolveAll && conflicts.length > 1 && (
+                {onAutoResolveAll && conflicts.length > 0 && (
                   <button
+                    id="conflict-modal-auto-resolve-all-btn"
+                    type="button"
                     onClick={onAutoResolveAll}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer shrink-0"
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer shrink-0 ml-auto sm:ml-0 group"
+                    title="Executa permutações automáticas para eliminar todos os conflitos do espelho de uma só vez"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <Sparkles className="w-4 h-4 text-emerald-200 group-hover:rotate-12 transition-transform" />
                     <span>Resolver Todos Automaticamente</span>
                   </button>
                 )}

@@ -3,7 +3,7 @@ import {
   Building2, Users, Shield, Plus, Edit2, Trash2, CheckCircle2,
   AlertCircle, Search, Filter, Lock, Unlock, Eye, ArrowRight,
   School, UserPlus, Sparkles, LogOut, Check, GraduationCap,
-  Calendar, Layers, MapPin
+  Calendar, Layers, MapPin, KeyRound
 } from 'lucide-react';
 import { Institution, AppUser, Classroom } from '../types';
 import { DeleteInstitutionModal } from './DeleteInstitutionModal';
@@ -18,7 +18,7 @@ interface MasterAdminDashboardProps {
   onEditInstitution: (inst: Institution) => void;
   onDeleteInstitution: (id: string) => void;
   onAddUser: () => void;
-  onEditUser: (user: AppUser) => void;
+  onEditUser: (user: AppUser, tab?: 'form' | 'credentials') => void;
   onDeleteUser: (id: string) => void;
   onSwitchSimulatedUser: (user: AppUser) => void;
   onEnterInstitutionAsMaster: (institutionId: string) => void;
@@ -611,6 +611,16 @@ export const MasterAdminDashboard: React.FC<MasterAdminDashboardProps> = ({
                         </td>
 
                         <td className="px-5 py-3.5 text-right space-x-1.5 whitespace-nowrap">
+                          {/* Ver / Copiar Credenciais de Acesso */}
+                          <button
+                            onClick={() => onEditUser(user, 'credentials')}
+                            title={`Ver e copiar credenciais de login de ${user.name}`}
+                            className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1 shadow-xs"
+                          >
+                            <KeyRound className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                            <span>Credenciais</span>
+                          </button>
+
                           {/* Test / Simulate as this user */}
                           <button
                             onClick={() => onSwitchSimulatedUser(user)}
@@ -622,8 +632,8 @@ export const MasterAdminDashboard: React.FC<MasterAdminDashboardProps> = ({
                           </button>
 
                           <button
-                            onClick={() => onEditUser(user)}
-                            title="Editar usuário"
+                            onClick={() => onEditUser(user, 'form')}
+                            title="Editar dados cadastrais"
                             className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 border border-slate-300 dark:border-zinc-700 transition-colors cursor-pointer inline-flex shadow-xs"
                           >
                             <Edit2 className="w-3.5 h-3.5" />

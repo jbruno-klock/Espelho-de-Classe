@@ -22,9 +22,11 @@ import {
   KeyRound,
   Sun,
   Moon,
-  Cloud
+  Cloud,
+  FileText
 } from 'lucide-react';
 import { Classroom, AppUser, Institution } from '../types';
+import { generateUserManualPdf } from '../utils/manualPdfGenerator';
 
 interface NavbarProps {
   currentUser: AppUser;
@@ -442,6 +444,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Users className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   Importar Alunos em Massa
+                </button>
+
+                <button
+                  onClick={() => generateUserManualPdf()}
+                  className="w-full text-left px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-zinc-300 dark:hover:bg-zinc-800/70 dark:hover:text-zinc-100 flex items-center gap-2.5 cursor-pointer"
+                  title="Baixar manual oficial completo com o passo a passo em PDF"
+                >
+                  <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  Manual do Usuário (PDF)
                 </button>
 
                 <button

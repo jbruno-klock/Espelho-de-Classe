@@ -13,10 +13,12 @@ import {
   Moon,
   HelpCircle,
   CheckCircle2,
-  X
+  X,
+  FileDown
 } from 'lucide-react';
 import { AppUser, Institution } from '../types';
 import { INITIAL_USERS } from '../utils/sampleData';
+import { generateUserManualPdf } from '../utils/manualPdfGenerator';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: AppUser) => void;
@@ -39,6 +41,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [isDownloadingManual, setIsDownloadingManual] = useState(false);
+  const [manualToast, setManualToast] = useState(false);
+
+  const handleDownloadManual = async () => {
+    try {
+      setIsDownloadingManual(true);
+      setError('');
+      await generateUserManualPdf();
+      setManualToast(true);
+      setTimeout(() => setManualToast(false), 4500);
+    } catch (err) {
+      console.error('Erro ao gerar manual em PDF:', err);
+      setError('Ocorreu um erro ao gerar o manual em PDF. Por favor, tente novamente.');
+    } finally {
+      setIsDownloadingManual(false);
+    }
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,6 +273,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
             {/* Submit Button */}
             <button
+              id="login-submit-btn"
               type="submit"
               disabled={isLoading}
               className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 dark:shadow-emerald-950/60 transition-all cursor-pointer mt-2"
@@ -267,6 +287,51 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 </>
               )}
             </button>
+
+            {/* Separator */}
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-slate-200 dark:border-zinc-800"></div>
+              <span className="flex-shrink mx-3 text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-zinc-500">
+                Capacitação & Ajuda
+              </span>
+              <div className="flex-grow border-t border-slate-200 dark:border-zinc-800"></div>
+            </div>
+
+            {/* Download Step-by-Step Manual PDF Button */}
+            <button
+              id="download-user-manual-btn"
+              type="button"
+              onClick={handleDownloadManual}
+              disabled={isDownloadingManual}
+              className="w-full py-2.5 px-4 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 dark:bg-[#18181f] dark:hover:bg-[#22222a] text-slate-700 dark:text-zinc-200 border border-slate-300 dark:border-zinc-700/70 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer group"
+              title="Baixar manual oficial completo com o passo a passo de utilização do sistema em formato PDF"
+            >
+              {isDownloadingManual ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                  <span>Gerando Manual em PDF...</span>
+                </>
+              ) : (
+                <>
+                  <FileDown className="w-4 h-4 text-emerald-600 dark:text-emerald-400 group-hover:-translate-y-0.5 transition-transform" />
+                  <span>Baixar Manual Passo a Passo (PDF)</span>
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800/60 ml-0.5">
+                    Guia Oficial
+                  </span>
+                </>
+              )}
+            </button>
+
+            {/* Manual Download Toast Feedback */}
+            {manualToast && (
+              <div 
+                id="manual-download-success-toast"
+                className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/60 rounded-xl text-emerald-800 dark:text-emerald-300 text-xs flex items-center justify-center gap-2 animate-in fade-in zoom-in-95 duration-200 font-medium"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>Manual em PDF gerado e baixado com sucesso!</span>
+              </div>
+            )}
           </form>
 
         </div>

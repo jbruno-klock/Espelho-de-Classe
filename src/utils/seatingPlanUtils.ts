@@ -2,6 +2,7 @@ import { Classroom, SavedSeatingPlan, SeatingPlanCategory } from '../types';
 
 export const SEATING_PLAN_PRESETS: { name: string; category: SeatingPlanCategory; description: string }[] = [
   { name: 'Espelho Oficial', category: 'official', description: 'Distribuição padrão e contínua do dia a dia da turma' },
+  { name: 'Ordem Alfabética', category: 'exam', description: 'Disposição organizada em ordem alfabética para provas e chamadas' },
   { name: 'Dias de Prova', category: 'exam', description: 'Distribuição intercalada para evitar cola e garantir silêncio' },
   { name: 'Teste / Simulado', category: 'test', description: 'Versão para avaliações parciais ou diagnósticas' },
   { name: 'Trabalho em Duplas', category: 'group', description: 'Organizado para colaboração e afinidades pedagógicas' },

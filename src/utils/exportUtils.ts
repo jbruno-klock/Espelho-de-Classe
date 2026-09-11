@@ -423,10 +423,11 @@ function generateNativeVectorPDF(
 
   // --- 3. LAYOUT DAS MESAS: MINIMALISTA PREMIUM ---
   const gridAvailableHeight = pageHeight - curY - 24; // space for bottom elements & footer
-  const gap = cols >= 12 ? 1.2 : cols >= 8 ? 1.8 : 2.5;
+  const gap = cols >= 16 ? 0.8 : cols >= 12 ? 1.2 : cols >= 8 ? 1.8 : 2.5;
   const deskWidth = (usableWidth - (gap * (cols - 1))) / cols;
   const deskHeight = Math.min(18, (gridAvailableHeight - (gap * (rows - 1))) / rows);
   const isCompact = deskWidth < 22 || deskHeight < 11;
+  const isUltraCompact = deskWidth < 14 || deskHeight < 8;
 
   for (let rIdx = 0; rIdx < rows; rIdx++) {
     for (let cIdx = 0; cIdx < cols; cIdx++) {
@@ -455,10 +456,10 @@ function generateNativeVectorPDF(
         // Roll number badge (Top Center)
         let rollBadgeH = 0;
         if (showRollNumber) {
-          const rollBadgeW = isCompact ? 7.5 : 10;
-          rollBadgeH = isCompact ? 2.5 : 3.5;
+          const rollBadgeW = isUltraCompact ? 5.5 : isCompact ? 7.5 : 10;
+          rollBadgeH = isUltraCompact ? 2.0 : isCompact ? 2.5 : 3.5;
           const rollBadgeX = dX + (deskWidth / 2) - (rollBadgeW / 2);
-          const rollBadgeY = dY + (isCompact ? 0.8 : 1.3);
+          const rollBadgeY = dY + (isUltraCompact ? 0.5 : isCompact ? 0.8 : 1.3);
 
           pdf.setFillColor(241, 245, 249); // slate-100
           pdf.setDrawColor(226, 232, 240);
@@ -466,16 +467,16 @@ function generateNativeVectorPDF(
           pdf.roundedRect(rollBadgeX, rollBadgeY, rollBadgeW, rollBadgeH, 0.6, 0.6, 'FD');
 
           pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(isCompact ? 4.2 : 5.5);
+          pdf.setFontSize(isUltraCompact ? 3.4 : isCompact ? 4.2 : 5.5);
           pdf.setTextColor(71, 85, 105); // slate-600
-          pdf.text(`N ${student.rollNumber}`, dX + (deskWidth / 2), rollBadgeY + (isCompact ? 1.8 : 2.5), { align: 'center' });
+          pdf.text(`N ${student.rollNumber}`, dX + (deskWidth / 2), rollBadgeY + (isUltraCompact ? 1.4 : isCompact ? 1.8 : 2.5), { align: 'center' });
         }
 
         // Student Name (Prominently Center)
-        const maxTextWidth = deskWidth - 2;
+        const maxTextWidth = deskWidth - (isUltraCompact ? 1 : 2);
         const fontSize = showRollNumber 
-          ? (deskWidth < 18 ? 4.2 : deskWidth < 26 ? 5.2 : deskWidth < 34 ? 6.5 : 7.5)
-          : (deskWidth < 18 ? 4.8 : deskWidth < 26 ? 5.8 : deskWidth < 34 ? 7.2 : 8.2);
+          ? (deskWidth < 12 ? 3.2 : deskWidth < 18 ? 4.2 : deskWidth < 26 ? 5.2 : deskWidth < 34 ? 6.5 : 7.5)
+          : (deskWidth < 12 ? 3.6 : deskWidth < 18 ? 4.8 : deskWidth < 26 ? 5.8 : deskWidth < 34 ? 7.2 : 8.2);
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(fontSize);
         pdf.setTextColor(15, 23, 42); // slate-900
