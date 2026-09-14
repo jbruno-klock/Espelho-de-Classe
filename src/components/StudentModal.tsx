@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   X, 
   Check, 
@@ -17,7 +17,14 @@ import {
   Sliders,
   ChevronDown,
   UserCheck,
-  UserX
+  UserX,
+  Camera,
+  Upload,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  RotateCcw,
+  MoveVertical,
+  ZoomIn
 } from 'lucide-react';
 import { 
   Student, 
@@ -29,6 +36,7 @@ import {
   AntiAffinityLevel 
 } from '../types';
 import { AVATAR_COLORS } from '../utils/sampleData';
+import { cropPortraitImage, processImageFileOrUrl } from '../utils/imageUtils';
 
 const DEFAULT_AFFINITY_CATEGORIES = [
   'Apoio Pedagógico / Monitoria',
@@ -78,6 +86,79 @@ export const StudentModal: React.FC<StudentModalProps> = ({
   const [avatarColor, setAvatarColor] = useState(
     initialStudent?.avatarColor || AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)]
   );
+  const [photoUrl, setPhotoUrl] = useState<string>(initialStudent?.photoUrl || '');
+  const [rawPhotoSrc, setRawPhotoSrc] = useState<string>(initialStudent?.photoUrl || '');
+  const [verticalOffset, setVerticalOffset] = useState<number>(0.15); // 0.15 = 15% from top (head-safe default)
+  const [photoZoom, setPhotoZoom] = useState<number>(1.0);
+  const [isFramingAdjustOpen, setIsFramingAdjustOpen] = useState<boolean>(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [manualUrl, setManualUrl] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Recrop image from raw source whenever framing or zoom changes
+  const recropPhoto = (offset: number, zoomLevel: number, srcToUse?: string) => {
+    const source = srcToUse || rawPhotoSrc || photoUrl;
+    if (!source) return;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const cropped = cropPortraitImage(img, {
+          width: 240,
+          height: 320, // 3:4 portrait
+          verticalOffset: offset,
+          zoom: zoomLevel,
+          quality: 0.84,
+        });
+        setPhotoUrl(cropped);
+      } catch (err) {
+        console.warn('Error cropping photo:', err);
+      }
+    };
+    img.src = source;
+  };
+
+  const processPhotoFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Por favor, selecione um arquivo de imagem válido (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      setPhotoError('A imagem selecionada é muito pesada (máximo 12MB).');
+      return;
+    }
+
+    setPhotoError(null);
+    setIsUploadingPhoto(true);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const rawData = event.target?.result as string;
+      setRawPhotoSrc(rawData);
+      recropPhoto(verticalOffset, photoZoom, rawData);
+      setIsUploadingPhoto(false);
+      setIsFramingAdjustOpen(true); // Automatically open framing controls so user can fine-tune if needed
+    };
+    reader.onerror = () => {
+      setPhotoError('Erro ao ler arquivo selecionado.');
+      setIsUploadingPhoto(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleApplyManualUrl = () => {
+    if (!manualUrl.trim()) return;
+    setRawPhotoSrc(manualUrl.trim());
+    recropPhoto(verticalOffset, photoZoom, manualUrl.trim());
+    setManualUrl('');
+    setShowUrlInput(false);
+    setPhotoError(null);
+    setIsFramingAdjustOpen(true);
+  };
   const [behavior, setBehavior] = useState<BehaviorLevel>(initialStudent?.behavior || 'calm');
   const [specialNeeds, setSpecialNeeds] = useState<SpecialNeedType[]>(initialStudent?.specialNeeds || []);
   const [specialNeedsNotes, setSpecialNeedsNotes] = useState(initialStudent?.specialNeedsNotes || '');
@@ -191,6 +272,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
       nickname: nickname.trim() || undefined,
       gender,
       avatarColor,
+      photoUrl: photoUrl.trim() || undefined,
       behavior,
       specialNeeds,
       specialNeedsNotes: specialNeedsNotes.trim() || undefined,
@@ -218,10 +300,14 @@ export const StudentModal: React.FC<StudentModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-zinc-800/80 bg-slate-50 dark:bg-[#161a20]">
           <div className="flex items-center gap-3">
             <div
-              className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold text-sm shadow-md border border-white/20"
+              className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold text-sm shadow-md border border-white/20 overflow-hidden shrink-0"
               style={{ backgroundColor: avatarColor }}
             >
-              {rollNumber || 'Nº'}
+              {photoUrl ? (
+                <img src={photoUrl} alt={name || 'Aluno'} className="w-full h-full object-cover" />
+              ) : (
+                rollNumber || 'Nº'
+              )}
             </div>
             <div>
               <h3 className="font-bold text-slate-900 dark:text-zinc-100 text-base font-display">
@@ -344,6 +430,298 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                     Outro
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* Anexar Foto do Aluno */}
+            <div className="pt-2">
+              <div className="p-4 bg-slate-50 dark:bg-[#181c22] rounded-2xl border border-slate-200 dark:border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    Foto do Aluno (Espelho de Classe & Impressão)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowUrlInput(!showUrlInput)}
+                      className="text-[11px] font-semibold text-slate-500 hover:text-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-400 flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <LinkIcon className="w-3 h-3" />
+                      {showUrlInput ? 'Ocultar Link' : 'Colar Link URL'}
+                    </button>
+                    {photoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setPhotoUrl('')}
+                        className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Remover Foto
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {showUrlInput && (
+                  <div className="flex items-center gap-2 p-2 bg-white dark:bg-[#121418] rounded-xl border border-slate-200 dark:border-zinc-700">
+                    <input
+                      type="url"
+                      placeholder="https://exemplo.com/foto-aluno.jpg"
+                      value={manualUrl}
+                      onChange={(e) => setManualUrl(e.target.value)}
+                      className="flex-1 text-xs px-2 py-1 bg-transparent text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 dark:placeholder:text-zinc-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyManualUrl}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                    >
+                      Aplicar
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  {/* Avatar Preview Box (Retangular Vertical 3:4 com cantos arredondados) */}
+                  <div className="relative group shrink-0 flex flex-col items-center">
+                    <div 
+                      className="w-20 h-26 sm:w-22 sm:h-29 rounded-xl overflow-hidden border-2 border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 flex items-center justify-center shadow-xs relative"
+                    >
+                      {photoUrl ? (
+                        <img 
+                          src={photoUrl} 
+                          alt={name || 'Foto do Aluno'} 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div 
+                          className="w-full h-full flex flex-col items-center justify-center text-white font-black text-sm"
+                          style={{ backgroundColor: avatarColor }}
+                        >
+                          {rollNumber ? `Nº ${rollNumber}` : <User className="w-6 h-6 opacity-80" />}
+                          <span className="text-[9px] font-normal opacity-80 mt-1">3×4 Sem foto</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {photoUrl && (
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsFramingAdjustOpen(!isFramingAdjustOpen)}
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-md border transition-all flex items-center gap-1 cursor-pointer ${
+                            isFramingAdjustOpen 
+                              ? 'bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700' 
+                              : 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:bg-slate-200'
+                          }`}
+                          title="Ajustar enquadramento vertical para não cortar a cabeça"
+                        >
+                          <Sliders className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                          Enquadrar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPhotoUrl('');
+                            setRawPhotoSrc('');
+                            setIsFramingAdjustOpen(false);
+                          }}
+                          className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-md transition-colors cursor-pointer"
+                          title="Remover foto"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Dropzone Upload */}
+                  <div className="flex-1 w-full min-w-0">
+                    <div 
+                      onDragOver={(e) => { e.preventDefault(); setIsDraggingPhoto(true); }}
+                      onDragLeave={() => setIsDraggingPhoto(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDraggingPhoto(false);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) processPhotoFile(file);
+                      }}
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`border-2 border-dashed rounded-xl p-3 flex items-center gap-3 cursor-pointer transition-all ${
+                        isDraggingPhoto 
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20' 
+                          : 'border-slate-300 dark:border-zinc-700 hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-zinc-800/60'
+                      }`}
+                    >
+                      <input 
+                        ref={fileInputRef}
+                        type="file" 
+                        accept="image/png,image/jpeg,image/webp,image/jpg" 
+                        className="hidden" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) processPhotoFile(file);
+                          e.target.value = '';
+                        }}
+                      />
+                      <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                        {isUploadingPhoto ? (
+                          <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Upload className="w-4 h-4" />
+                        )}
+                      </div>
+                      <div className="text-left flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-800 dark:text-zinc-200 truncate">
+                          {photoUrl ? 'Substituir foto 3×4 (clique ou arraste nova imagem)' : 'Anexar foto 3×4 (clique ou arraste)'}
+                        </p>
+                        <p className="text-[10px] text-slate-500 dark:text-zinc-400">
+                          Formato retangular vertical 3:4 com cantos arredondados e enquadramento inteligente do rosto.
+                        </p>
+                      </div>
+                    </div>
+
+                    {photoError && (
+                      <p className="text-xs text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1 mt-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        {photoError}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Painel de Ajuste Interativo de Enquadramento */}
+                {photoUrl && isFramingAdjustOpen && (
+                  <div className="p-3.5 bg-purple-50/70 dark:bg-purple-950/20 rounded-2xl border border-purple-200 dark:border-purple-800/60 space-y-3 transition-all animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-purple-900 dark:text-purple-300 text-xs font-bold">
+                        <Sliders className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                        <span>Ajustar Enquadramento do Rosto & Cabeça</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVerticalOffset(0.15);
+                            setPhotoZoom(1.0);
+                            recropPhoto(0.15, 1.0);
+                          }}
+                          className="text-[11px] font-semibold text-purple-700 dark:text-purple-300 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          Redefinir
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Presets Rápidos */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-400">Atalhos rápidos:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVerticalOffset(0.04);
+                          recropPhoto(0.04, photoZoom);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                          Math.abs(verticalOffset - 0.04) < 0.03
+                            ? 'bg-purple-600 text-white border-purple-600'
+                            : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 border-slate-300 dark:border-zinc-700 hover:bg-purple-50'
+                        }`}
+                      >
+                        Topo (Foco no Rosto/Cabelo)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVerticalOffset(0.18);
+                          recropPhoto(0.18, photoZoom);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                          Math.abs(verticalOffset - 0.18) < 0.05
+                            ? 'bg-purple-600 text-white border-purple-600'
+                            : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 border-slate-300 dark:border-zinc-700 hover:bg-purple-50'
+                        }`}
+                      >
+                        Padrão Escolar 3×4
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVerticalOffset(0.5);
+                          recropPhoto(0.5, photoZoom);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                          Math.abs(verticalOffset - 0.5) < 0.05
+                            ? 'bg-purple-600 text-white border-purple-600'
+                            : 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 border-slate-300 dark:border-zinc-700 hover:bg-purple-50'
+                        }`}
+                      >
+                        Centro
+                      </button>
+                    </div>
+
+                    {/* Sliders de Precisão */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                          <span className="flex items-center gap-1">
+                            <MoveVertical className="w-3 h-3 text-purple-600" />
+                            Posição Vertical (Altura)
+                          </span>
+                          <span className="text-purple-700 dark:text-purple-400 font-mono">
+                            {verticalOffset <= 0.10 ? 'Topo' : verticalOffset >= 0.85 ? 'Base' : `${Math.round(verticalOffset * 100)}%`}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={Math.round(verticalOffset * 100)}
+                          onChange={(e) => {
+                            const newOffset = Number(e.target.value) / 100;
+                            setVerticalOffset(newOffset);
+                            recropPhoto(newOffset, photoZoom);
+                          }}
+                          className="w-full accent-purple-600 h-1.5 bg-purple-200 dark:bg-purple-950 rounded-lg cursor-pointer"
+                        />
+                        <div className="flex justify-between text-[9px] text-slate-500 dark:text-zinc-400 mt-0.5">
+                          <span>↑ Mais acima (cabeça)</span>
+                          <span>↓ Mais abaixo</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                          <span className="flex items-center gap-1">
+                            <ZoomIn className="w-3 h-3 text-purple-600" />
+                            Zoom / Proximidade
+                          </span>
+                          <span className="text-purple-700 dark:text-purple-400 font-mono">
+                            {photoZoom.toFixed(1)}×
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="10"
+                          max="22"
+                          value={Math.round(photoZoom * 10)}
+                          onChange={(e) => {
+                            const newZoom = Number(e.target.value) / 10;
+                            setPhotoZoom(newZoom);
+                            recropPhoto(verticalOffset, newZoom);
+                          }}
+                          className="w-full accent-purple-600 h-1.5 bg-purple-200 dark:bg-purple-950 rounded-lg cursor-pointer"
+                        />
+                        <div className="flex justify-between text-[9px] text-slate-500 dark:text-zinc-400 mt-0.5">
+                          <span>1.0× (Normal)</span>
+                          <span>2.2× (Aproximado)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

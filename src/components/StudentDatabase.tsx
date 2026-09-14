@@ -17,7 +17,8 @@ import {
   UserCheck,
   UserX,
   X,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Camera
 } from 'lucide-react';
 import { Student, Classroom } from '../types';
 
@@ -28,6 +29,7 @@ interface StudentDatabaseProps {
   onDeleteStudent: (studentId: string) => void;
   onOpenBatchImportModal: () => void;
   onOpenTeacherSpreadsheetModal?: () => void;
+  onOpenBulkPhotoImportModal: () => void;
 }
 
 export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
@@ -37,6 +39,7 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
   onDeleteStudent,
   onOpenBatchImportModal,
   onOpenTeacherSpreadsheetModal,
+  onOpenBulkPhotoImportModal,
 }) => {
   const [search, setSearch] = useState('');
   const [filterBehavior, setFilterBehavior] = useState<string>('all');
@@ -94,6 +97,15 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
           >
             <Upload className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             Importar Planilha / CSV
+          </button>
+
+          <button
+            onClick={onOpenBulkPhotoImportModal}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 text-purple-800 dark:text-purple-300 text-xs font-bold rounded-xl transition-all cursor-pointer border border-purple-300 dark:border-purple-800/60 shadow-xs"
+            title="Importar fotos em lote dos alunos da turma em formato retangular vertical 3×4"
+          >
+            <Camera className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            Importar Fotos em Lote
           </button>
 
           <button
@@ -214,14 +226,30 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
                   return (
                     <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/30 transition-colors">
                       
-                      {/* Roll Number Badge */}
+                      {/* Roll Number & Photo Badge */}
                       <td className="py-3.5 px-4 text-center">
-                        <span
-                          className="inline-flex items-center justify-center w-7 h-7 rounded-xl text-white font-bold text-xs shadow-xs"
-                          style={{ backgroundColor: student.avatarColor || '#6366f1' }}
-                        >
-                          {student.rollNumber}
-                        </span>
+                        {student.photoUrl ? (
+                          <div className="relative inline-block">
+                            <img
+                              src={student.photoUrl}
+                              alt={student.name}
+                              className="w-7 h-9 rounded-lg object-cover border border-slate-200 dark:border-zinc-700 shadow-xs block"
+                            />
+                            <span 
+                              className="absolute -bottom-1 -right-1 px-1 min-w-[14px] h-3.5 rounded-full text-[8px] font-black text-white flex items-center justify-center shadow-xs"
+                              style={{ backgroundColor: student.avatarColor || '#6366f1' }}
+                            >
+                              {student.rollNumber}
+                            </span>
+                          </div>
+                        ) : (
+                          <span
+                            className="inline-flex items-center justify-center w-7 h-9 rounded-lg text-white font-bold text-xs shadow-xs"
+                            style={{ backgroundColor: student.avatarColor || '#6366f1' }}
+                          >
+                            {student.rollNumber}
+                          </span>
+                        )}
                       </td>
 
                       {/* Name & Nickname */}

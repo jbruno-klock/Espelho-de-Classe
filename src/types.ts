@@ -53,6 +53,7 @@ export interface Student {
   nickname?: string;
   gender?: Gender;
   avatarColor?: string;
+  photoUrl?: string; // Foto do aluno (base64 Data URL ou link web)
   behavior: BehaviorLevel; // 'calm' | 'moderate' | 'talkative'
   specialNeeds: SpecialNeedType[];
   specialNeedsNotes?: string;

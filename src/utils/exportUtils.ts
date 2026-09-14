@@ -84,6 +84,7 @@ function safeLatinText(text: string): string {
 
 export interface PdfExportOptions {
   showRollNumber?: boolean;
+  showPhotos?: boolean;
   viewPerspective?: 'student' | 'teacher';
 }
 
@@ -288,6 +289,7 @@ function generateNativeVectorPDF(
   options?: PdfExportOptions
 ): void {
   const showRollNumber = options?.showRollNumber !== false;
+  const showPhotos = options?.showPhotos ?? false;
   const pageWidth = 297;
   const pageHeight = 210;
   const marginX = 12;
@@ -425,7 +427,8 @@ function generateNativeVectorPDF(
   const gridAvailableHeight = pageHeight - curY - 24; // space for bottom elements & footer
   const gap = cols >= 16 ? 0.8 : cols >= 12 ? 1.2 : cols >= 8 ? 1.8 : 2.5;
   const deskWidth = (usableWidth - (gap * (cols - 1))) / cols;
-  const deskHeight = Math.min(18, (gridAvailableHeight - (gap * (rows - 1))) / rows);
+  const maxDeskH = showPhotos ? (rows <= 5 ? 24 : rows <= 7 ? 22 : 18) : (rows <= 5 ? 20 : 18);
+  const deskHeight = Math.min(maxDeskH, (gridAvailableHeight - (gap * (rows - 1))) / rows);
   const isCompact = deskWidth < 22 || deskHeight < 11;
   const isUltraCompact = deskWidth < 14 || deskHeight < 8;
 
@@ -472,26 +475,96 @@ function generateNativeVectorPDF(
           pdf.text(`N ${student.rollNumber}`, dX + (deskWidth / 2), rollBadgeY + (isUltraCompact ? 1.4 : isCompact ? 1.8 : 2.5), { align: 'center' });
         }
 
-        // Student Name (Prominently Center)
+        // Student Name Typography & Smart Wrapping
         const maxTextWidth = deskWidth - (isUltraCompact ? 1 : 2);
-        const fontSize = showRollNumber 
-          ? (deskWidth < 12 ? 3.2 : deskWidth < 18 ? 4.2 : deskWidth < 26 ? 5.2 : deskWidth < 34 ? 6.5 : 7.5)
-          : (deskWidth < 12 ? 3.6 : deskWidth < 18 ? 4.8 : deskWidth < 26 ? 5.8 : deskWidth < 34 ? 7.2 : 8.2);
+        const fontSize = showPhotos
+          ? (deskWidth < 12 ? 2.3 : deskWidth < 18 ? 2.9 : deskWidth < 26 ? 3.5 : deskWidth < 34 ? 4.1 : 4.8)
+          : (showRollNumber 
+              ? (deskWidth < 12 ? 3.2 : deskWidth < 18 ? 4.2 : deskWidth < 26 ? 5.2 : deskWidth < 34 ? 6.5 : 7.5)
+              : (deskWidth < 12 ? 3.6 : deskWidth < 18 ? 4.8 : deskWidth < 26 ? 5.8 : deskWidth < 34 ? 7.2 : 8.2));
+        
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(fontSize);
         pdf.setTextColor(15, 23, 42); // slate-900
         
-        // Smart name wrapping: 1 line if desk is very short, else 2 lines
-        const maxLines = deskHeight < 10 ? 1 : 2;
+        // Wrap student name: 1 line if desk is very short or space is tight, else 2 lines
+        const maxLines = (deskHeight < 10 || (showPhotos && deskHeight < 14)) ? 1 : 2;
         const displayLines = wrapStudentName(pdf, student.name, maxTextWidth, maxLines);
-
-        const lineHeight = fontSize * 0.4;
+        const lineHeight = fontSize * 0.38;
         const totalTextHeight = (displayLines.length - 1) * lineHeight;
-        const startY = showRollNumber
-          ? (isCompact 
-              ? dY + rollBadgeH + (isCompact ? 2.2 : 3) 
-              : dY + (deskHeight / 2) + 1.5 - (totalTextHeight / 2))
-          : dY + (deskHeight / 2) + 0.8 - (totalTextHeight / 2);
+
+        let startY: number;
+        let textTop: number;
+
+        if (showPhotos) {
+          // Adjust names further down near the bottom of the desk cards
+          const bottomPadding = isUltraCompact ? 0.7 : isCompact ? 0.9 : 1.2;
+          const lastLineBaseline = dY + deskHeight - bottomPadding;
+          startY = lastLineBaseline - ((displayLines.length - 1) * lineHeight);
+          textTop = startY - (fontSize * 0.34);
+        } else if (showRollNumber) {
+          startY = isCompact 
+            ? dY + rollBadgeH + (isCompact ? 2.2 : 3) 
+            : dY + (deskHeight / 2) + 1.5 - (totalTextHeight / 2);
+          textTop = startY - (fontSize * 0.34);
+        } else {
+          startY = dY + (deskHeight / 2) + 0.8 - (totalTextHeight / 2);
+          textTop = startY - (fontSize * 0.34);
+        }
+
+        // Photo or Avatar (Center-Top) - Maximized 3:4 portrait format
+        if (showPhotos && deskHeight >= 10) {
+          const topBoundary = showRollNumber 
+            ? (dY + rollBadgeH + (isUltraCompact ? 0.5 : 0.8)) 
+            : (dY + (isUltraCompact ? 0.6 : 0.9));
+          const gapBetween = isUltraCompact ? 0.5 : 0.8;
+          const maxAvailableH = Math.max(3, textTop - topBoundary - gapBetween);
+          const maxAvailableW = Math.max(3, deskWidth - (isUltraCompact ? 1.6 : isCompact ? 2.4 : 3.4));
+
+          // Calculate 3:4 portrait dimensions filling available space
+          let photoH = maxAvailableH;
+          let photoW = photoH * (3 / 4);
+          if (photoW > maxAvailableW) {
+            photoW = maxAvailableW;
+            photoH = photoW * (4 / 3);
+          }
+
+          const photoX = dX + (deskWidth / 2) - (photoW / 2);
+          const photoY = topBoundary + ((maxAvailableH - photoH) / 2);
+          const photoRadius = isUltraCompact ? 0.3 : isCompact ? 0.4 : 0.6;
+
+          if (student.photoUrl) {
+            try {
+              const format = student.photoUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+              pdf.addImage(student.photoUrl, format, photoX, photoY, photoW, photoH, undefined, 'FAST');
+              // Draw subtle rounded border around image
+              pdf.setDrawColor(203, 213, 225); // slate-300
+              pdf.setLineWidth(0.15);
+              pdf.roundedRect(photoX, photoY, photoW, photoH, photoRadius, photoRadius, 'D');
+            } catch (photoErr) {
+              // Fallback rounded rect if image format fails
+              pdf.setFillColor(241, 245, 249);
+              pdf.setDrawColor(203, 213, 225);
+              pdf.setLineWidth(0.15);
+              pdf.roundedRect(photoX, photoY, photoW, photoH, photoRadius, photoRadius, 'FD');
+            }
+          } else {
+            // Draw 3:4 portrait rounded rect with initial letter
+            pdf.setFillColor(241, 245, 249);
+            pdf.setDrawColor(203, 213, 225);
+            pdf.setLineWidth(0.15);
+            pdf.roundedRect(photoX, photoY, photoW, photoH, photoRadius, photoRadius, 'FD');
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(photoW * 1.15);
+            pdf.setTextColor(100, 116, 139);
+            pdf.text(safeLatinText(student.name.charAt(0)).toUpperCase(), photoX + (photoW / 2), photoY + (photoH * 0.65), { align: 'center' });
+            
+            // Re-apply student name font settings
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(fontSize);
+            pdf.setTextColor(15, 23, 42);
+          }
+        }
 
         displayLines.forEach((lineText: string, lineIndex: number) => {
           pdf.text(lineText, dX + (deskWidth / 2), startY + (lineIndex * lineHeight), { align: 'center' });

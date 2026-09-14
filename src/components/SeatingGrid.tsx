@@ -510,14 +510,24 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                     {student ? (
                       <div className="my-auto py-0.5">
                         <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
-                          <div
-                            className={`${
-                              isExtremeDensity ? 'w-3 h-3 sm:w-3.5 sm:h-3.5 text-[7px]' : isUltraDensity ? 'w-3.5 h-3.5 sm:w-4 sm:h-4 text-[8px]' : 'w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-[9px] sm:text-[10px]'
-                            } rounded-md sm:rounded-lg flex items-center justify-center text-white font-bold shrink-0 shadow-xs`}
-                            style={{ backgroundColor: student.avatarColor || '#6366f1' }}
-                          >
-                            {student.rollNumber}
-                          </div>
+                          {student.photoUrl ? (
+                            <img
+                              src={student.photoUrl}
+                              alt={student.name}
+                              className={`${
+                                isExtremeDensity ? 'w-3 h-4' : isUltraDensity ? 'w-3.5 h-4.5' : 'w-5 h-6.5 sm:w-6 sm:h-8'
+                              } rounded-md object-cover shrink-0 shadow-xs border border-slate-200 dark:border-zinc-700`}
+                            />
+                          ) : (
+                            <div
+                              className={`${
+                                isExtremeDensity ? 'w-3 h-4 text-[7px]' : isUltraDensity ? 'w-3.5 h-4.5 text-[8px]' : 'w-5 h-6.5 sm:w-6 sm:h-8 text-[9px] sm:text-[10px]'
+                              } rounded-md flex items-center justify-center text-white font-bold shrink-0 shadow-xs`}
+                              style={{ backgroundColor: student.avatarColor || '#6366f1' }}
+                            >
+                              {student.rollNumber}
+                            </div>
+                          )}
                           <div className="min-w-0 flex-1">
                             <p className={`${
                               isExtremeDensity ? 'text-[8px] sm:text-[8.5px]' : isUltraDensity ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-xs'

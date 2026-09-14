@@ -37,6 +37,7 @@ import { DeleteClassModal } from './components/DeleteClassModal';
 import { RoomConfigModal } from './components/RoomConfigModal';
 import { StudentModal } from './components/StudentModal';
 import { BatchImportModal } from './components/BatchImportModal';
+import { BulkPhotoImportModal } from './components/BulkPhotoImportModal';
 import { TeacherSpreadsheetModal } from './components/TeacherSpreadsheetModal';
 import { AffinityMatrixModal } from './components/AffinityMatrixModal';
 import { ConflictModal } from './components/ConflictModal';
@@ -257,6 +258,7 @@ export default function App() {
   const [isRoomConfigModalOpen, setIsRoomConfigModalOpen] = useState(false);
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isBatchImportModalOpen, setIsBatchImportModalOpen] = useState(false);
+  const [isBulkPhotoImportModalOpen, setIsBulkPhotoImportModalOpen] = useState(false);
   const [isTeacherSpreadsheetModalOpen, setIsTeacherSpreadsheetModalOpen] = useState(false);
   const [isAffinityMatrixModalOpen, setIsAffinityMatrixModalOpen] = useState(false);
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
@@ -703,6 +705,26 @@ export default function App() {
     setIsBatchImportModalOpen(false);
   };
 
+  // Bulk Photo Import Handler
+  const handleSaveBulkPhotos = (photoUpdates: Record<string, string>) => {
+    updateActiveClassroom(prev => {
+      const updatedStudents = prev.students.map(student => {
+        if (photoUpdates[student.id]) {
+          return {
+            ...student,
+            photoUrl: photoUpdates[student.id],
+          };
+        }
+        return student;
+      });
+      return {
+        ...prev,
+        students: updatedStudents,
+        updatedAt: Date.now(),
+      };
+    });
+  };
+
   // Room Config
   const handleSaveRoomConfig = (newConfig: RoomConfig) => {
     updateActiveClassroom(prev => {
@@ -1083,6 +1105,7 @@ export default function App() {
             onDeleteStudent={handleDeleteStudent}
             onOpenBatchImportModal={() => setIsBatchImportModalOpen(true)}
             onOpenTeacherSpreadsheetModal={() => setIsTeacherSpreadsheetModalOpen(true)}
+            onOpenBulkPhotoImportModal={() => setIsBulkPhotoImportModalOpen(true)}
           />
         )}
 
@@ -1176,6 +1199,13 @@ export default function App() {
         classroom={activeClassroom}
         institution={activeInstitution}
         onOpenTeacherSpreadsheetModal={() => setIsTeacherSpreadsheetModalOpen(true)}
+      />
+
+      <BulkPhotoImportModal
+        isOpen={isBulkPhotoImportModalOpen}
+        onClose={() => setIsBulkPhotoImportModalOpen(false)}
+        classroom={activeClassroom}
+        onSaveBulkPhotos={handleSaveBulkPhotos}
       />
 
       <TeacherSpreadsheetModal
