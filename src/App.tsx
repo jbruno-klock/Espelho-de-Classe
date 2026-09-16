@@ -680,6 +680,35 @@ export default function App() {
     });
   };
 
+  const handleClearAllStudents = () => {
+    updateActiveClassroom(prev => {
+      const clearedMap: Record<string, string | null> = {};
+      Object.keys(prev.seatingMap || {}).forEach(deskId => {
+        clearedMap[deskId] = null;
+      });
+      const updatedSavedPlans = prev.savedPlans?.map(plan => {
+        const planClearedMap: Record<string, string | null> = {};
+        Object.keys(plan.seatingMap || {}).forEach(dId => {
+          planClearedMap[dId] = null;
+        });
+        return {
+          ...plan,
+          seatingMap: planClearedMap,
+          updatedAt: Date.now(),
+        };
+      });
+      return {
+        ...prev,
+        students: [],
+        seatingMap: clearedMap,
+        savedPlans: updatedSavedPlans,
+        updatedAt: Date.now(),
+      };
+    });
+    setPlanFeedback('Turma limpa com sucesso! Todos os alunos foram removidos.');
+    setTimeout(() => setPlanFeedback(null), 3500);
+  };
+
   const handleBatchImport = (importedStudents: Student[], mode: 'append' | 'replace' = 'append') => {
     updateActiveClassroom(prev => {
       if (mode === 'replace') {
@@ -1103,6 +1132,7 @@ export default function App() {
               setIsStudentModalOpen(true);
             }}
             onDeleteStudent={handleDeleteStudent}
+            onClearAllStudents={handleClearAllStudents}
             onOpenBatchImportModal={() => setIsBatchImportModalOpen(true)}
             onOpenTeacherSpreadsheetModal={() => setIsTeacherSpreadsheetModalOpen(true)}
             onOpenBulkPhotoImportModal={() => setIsBulkPhotoImportModalOpen(true)}

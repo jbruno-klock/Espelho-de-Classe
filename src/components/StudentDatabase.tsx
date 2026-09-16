@@ -21,12 +21,14 @@ import {
   Camera
 } from 'lucide-react';
 import { Student, Classroom } from '../types';
+import { ClearClassroomModal } from './ClearClassroomModal';
 
 interface StudentDatabaseProps {
   classroom: Classroom;
   onOpenAddStudentModal: () => void;
   onOpenEditStudentModal: (student: Student) => void;
   onDeleteStudent: (studentId: string) => void;
+  onClearAllStudents: () => void;
   onOpenBatchImportModal: () => void;
   onOpenTeacherSpreadsheetModal?: () => void;
   onOpenBulkPhotoImportModal: () => void;
@@ -37,6 +39,7 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
   onOpenAddStudentModal,
   onOpenEditStudentModal,
   onDeleteStudent,
+  onClearAllStudents,
   onOpenBatchImportModal,
   onOpenTeacherSpreadsheetModal,
   onOpenBulkPhotoImportModal,
@@ -45,6 +48,7 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
   const [filterBehavior, setFilterBehavior] = useState<string>('all');
   const [filterNeed, setFilterNeed] = useState<string>('all');
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [isClearAllModalOpen, setIsClearAllModalOpen] = useState(false);
 
   const students = classroom.students;
 
@@ -114,6 +118,16 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
           >
             <Plus className="w-4 h-4" />
             Adicionar Aluno
+          </button>
+
+          <button
+            onClick={() => setIsClearAllModalOpen(true)}
+            disabled={students.length === 0}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 disabled:opacity-40 disabled:cursor-not-allowed dark:bg-rose-950/30 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-400 text-xs font-bold rounded-xl transition-all cursor-pointer border border-rose-200 dark:border-rose-900/50 shadow-xs"
+            title={students.length === 0 ? "A turma não possui alunos cadastrados" : "Excluir todos os alunos desta turma e esvaziar o mapa"}
+          >
+            <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+            Limpar Turma
           </button>
         </div>
       </div>
@@ -430,6 +444,14 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal de Confirmação para Limpar Todos os Alunos da Turma */}
+      <ClearClassroomModal
+        isOpen={isClearAllModalOpen}
+        onClose={() => setIsClearAllModalOpen(false)}
+        classroom={classroom}
+        onConfirmClear={onClearAllStudents}
+      />
 
     </div>
   );
