@@ -60,9 +60,12 @@ const STORAGE_KEY_THEME = 'espelho_theme_v2';
  * ROOT COMPONENT WITH TOTAL LOGIN BYPASS FOR NFC CHECK-IN ROUTE (?nfcEntrada=1)
  * Verifica os parâmetros da URL antes de qualquer verificação de autenticação,
  * sessão de usuário ou tela de login do sistema.
+ * 
+ * SEGURANÇA: O link de registro de entrada (?nfcEntrada=1) é restrito e isolado
+ * para a portaria/aluno e NUNCA dá acesso ao sistema nem à tela de login.
  */
 export default function App() {
-  const [isNfcMode, setIsNfcMode] = useState<boolean>(() => {
+  const isNfcMode = (() => {
     try {
       if (typeof window === 'undefined') return false;
       const params = new URLSearchParams(window.location.search);
@@ -70,24 +73,12 @@ export default function App() {
     } catch {
       return false;
     }
-  });
-
-  const handleExitNfcMode = () => {
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('nfcEntrada');
-      url.searchParams.delete('unidadeId');
-      window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
-    } catch {
-      // ignore
-    }
-    setIsNfcMode(false);
-  };
+  })();
 
   // Se a URL contiver ?nfcEntrada=1, renderiza IMEDIATAMENTE e EXCLUSIVAMENTE a tela de Check-in NFC
-  // sem passar por nenhum bloqueio de login ou sessão de usuário
+  // sem passar por nenhum login e sem disponibilizar nenhum botão de acesso ao sistema interno.
   if (isNfcMode) {
-    return <NfcStudentCheckInView onExitCheckIn={handleExitNfcMode} />;
+    return <NfcStudentCheckInView />;
   }
 
   return <EspelhoClasseApp />;

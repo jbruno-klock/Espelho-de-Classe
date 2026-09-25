@@ -11,8 +11,7 @@ import {
   GraduationCap, 
   UserCheck, 
   RotateCcw,
-  Sparkles,
-  ExternalLink
+  Sparkles
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Classroom, Student, Institution, AttendanceRecord } from '../types';
@@ -34,14 +33,12 @@ interface NfcStudentCheckInViewProps {
   unidadeId?: string;
   allInstitutions?: Institution[];
   allClassrooms?: Classroom[];
-  onExitCheckIn?: () => void;
 }
 
 export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
   unidadeId: propUnidadeId,
   allInstitutions: propInstitutions,
   allClassrooms: propClassrooms,
-  onExitCheckIn,
 }) => {
   // Extract effective unidadeId from prop or URL query parameter
   const effectiveUnidadeId = (() => {
@@ -339,14 +336,10 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
           </div>
         </div>
 
-        {onExitCheckIn && (
-          <button
-            onClick={onExitCheckIn}
-            className="text-xs text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-700/80 transition-all cursor-pointer"
-          >
-            Acessar Sistema
-          </button>
-        )}
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800/80 border border-slate-700/60 text-slate-400 text-[11px]">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Terminal de Entrada</span>
+        </div>
       </header>
 
       {/* Main Content Area */}
