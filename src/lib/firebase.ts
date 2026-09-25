@@ -1,4 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
+import { getAuth, signInAnonymously } from 'firebase/auth';
 import {
   getFirestore,
   collection,
@@ -18,6 +19,9 @@ import { INITIAL_INSTITUTIONS, INITIAL_USERS, INITIAL_CLASSROOMS } from '../util
 // Initialize Firebase App
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
+// Initialize Auth
+export const auth = getAuth(app);
+
 // Initialize Firestore with specific databaseId if configured
 export const db = getFirestore(
   app,
@@ -33,6 +37,21 @@ export const COLLECTIONS = {
   CLASSROOMS: 'classrooms',
   ATTENDANCE: 'attendance'
 } as const;
+
+/**
+ * Automatically ensures silent anonymous authentication for public kiosk/NFC check-in.
+ * Does not throw error if anonymous auth is not enabled in Firebase Console.
+ */
+export async function ensureAnonymousAuth(): Promise<void> {
+  try {
+    if (!auth.currentUser) {
+      await signInAnonymously(auth);
+      console.log('✅ Autenticação anônima ativa para Check-in NFC');
+    }
+  } catch (error) {
+    console.warn('Silent anonymous auth note (proceeding with public Firestore):', error);
+  }
+}
 
 // Helper to sanitize objects for Firestore (removes undefined values that crash Firestore)
 function sanitizeForFirestore<T>(data: T): T {
@@ -279,6 +298,13 @@ export async function recordAttendanceEntry(entry: {
   originalTime?: string;
 }> {
   const docId = `${entry.institutionId}_${entry.studentId}_${entry.date}`;
+
+  // Ensure silent auth for attendance write if needed
+  try {
+    await ensureAnonymousAuth();
+  } catch {
+    // continue
+  }
 
   // 1. Check local cache first
   const localList = getLocalAttendanceRecords(entry.institutionId);

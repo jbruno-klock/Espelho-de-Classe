@@ -16,23 +16,115 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Classroom, Student, Institution, AttendanceRecord } from '../types';
-import { recordAttendanceEntry } from '../lib/firebase';
+import { 
+  ensureAnonymousAuth, 
+  subscribeToCloudData, 
+  recordAttendanceEntry,
+  db,
+  COLLECTIONS 
+} from '../lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+import { INITIAL_INSTITUTIONS, INITIAL_CLASSROOMS } from '../utils/sampleData';
 
 const STORAGE_LAST_MATRICULA = 'espelho_nfc_last_matricula';
+const STORAGE_KEY_CLASSROOMS = 'espelho_classe_data_v2';
+const STORAGE_KEY_INSTITUTIONS = 'espelho_institutions_v2';
 
 interface NfcStudentCheckInViewProps {
   unidadeId?: string;
-  allInstitutions: Institution[];
-  allClassrooms: Classroom[];
+  allInstitutions?: Institution[];
+  allClassrooms?: Classroom[];
   onExitCheckIn?: () => void;
 }
 
 export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
-  unidadeId,
-  allInstitutions,
-  allClassrooms,
+  unidadeId: propUnidadeId,
+  allInstitutions: propInstitutions,
+  allClassrooms: propClassrooms,
   onExitCheckIn,
 }) => {
+  // Extract effective unidadeId from prop or URL query parameter
+  const effectiveUnidadeId = (() => {
+    if (propUnidadeId && propUnidadeId.trim()) return propUnidadeId;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('unidadeId') || undefined;
+    } catch {
+      return undefined;
+    }
+  })();
+
+  // State: institutions
+  const [institutions, setInstitutions] = useState<Institution[]>(() => {
+    if (propInstitutions && propInstitutions.length > 0) return propInstitutions;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_INSTITUTIONS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_INSTITUTIONS;
+  });
+
+  // State: classrooms
+  const [classrooms, setClassrooms] = useState<Classroom[]>(() => {
+    if (propClassrooms && propClassrooms.length > 0) return propClassrooms;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_CLASSROOMS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_CLASSROOMS;
+  });
+
+  // Update if props change
+  useEffect(() => {
+    if (propInstitutions && propInstitutions.length > 0) {
+      setInstitutions(propInstitutions);
+    }
+  }, [propInstitutions]);
+
+  useEffect(() => {
+    if (propClassrooms && propClassrooms.length > 0) {
+      setClassrooms(propClassrooms);
+    }
+  }, [propClassrooms]);
+
+  // Execute silent anonymous auth & subscribe to live Firestore updates
+  useEffect(() => {
+    // 1. Silent anonymous auth without asking anything to student
+    ensureAnonymousAuth();
+
+    // 2. Real-time Firestore sync
+    const unsubscribe = subscribeToCloudData({
+      onInstitutions: (cloudInsts) => {
+        if (cloudInsts && cloudInsts.length > 0) {
+          setInstitutions(cloudInsts);
+        }
+      },
+      onUsers: () => {},
+      onClassrooms: (cloudRooms) => {
+        if (cloudRooms && cloudRooms.length > 0) {
+          setClassrooms(cloudRooms);
+        }
+      },
+      onError: (err) => {
+        console.warn('Public NFC Cloud Sync notice:', err);
+      },
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   // Step: 1 = Digitar Matrícula, 2 = Confirmar Identidade, 3 = Sucesso / Comprovante
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [matriculaInput, setMatriculaInput] = useState<string>('');
@@ -52,7 +144,7 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
   } | null>(null);
 
   // Identify institution
-  const activeInstitution = allInstitutions.find(i => i.id === unidadeId) || allInstitutions[0];
+  const activeInstitution = institutions.find(i => i.id === effectiveUnidadeId) || institutions[0];
 
   // Pre-fill last matricula from localStorage on mount
   useEffect(() => {
@@ -67,16 +159,48 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
   }, []);
 
   // Filter classrooms belonging to this institution
-  const institutionClassrooms = allClassrooms.filter(c => {
-    if (!unidadeId) return true;
-    return c.institutionId === unidadeId || !c.institutionId;
+  const institutionClassrooms = classrooms.filter(c => {
+    if (!effectiveUnidadeId) return true;
+    return c.institutionId === effectiveUnidadeId || !c.institutionId;
   });
 
+  // Helper to find student in given list of classrooms
+  const findStudentByMatricula = (rooms: Classroom[], query: string) => {
+    const qLower = query.toLowerCase();
+    const qNumeric = query.replace(/\D/g, '');
+
+    for (const cls of rooms) {
+      // If we have an effectiveUnidadeId, skip classrooms from other institutions
+      if (effectiveUnidadeId && cls.institutionId && cls.institutionId !== effectiveUnidadeId) {
+        continue;
+      }
+
+      for (const std of cls.students) {
+        const stdMatricula = (std.matricula || '').trim().toLowerCase();
+        const stdMatNumeric = stdMatricula.replace(/\D/g, '');
+
+        // 1. Exact matricula match
+        if (stdMatricula && stdMatricula === qLower) {
+          return { student: std, classroom: cls };
+        }
+        // 2. Numeric matricula match (e.g. "2026001" vs "MAT-2026001")
+        if (qNumeric && stdMatNumeric && qNumeric === stdMatNumeric) {
+          return { student: std, classroom: cls };
+        }
+        // 3. Fallback to roll number if matricula is not set or matches numeric rollNumber
+        if (String(std.rollNumber) === query || (qNumeric && String(std.rollNumber) === qNumeric)) {
+          return { student: std, classroom: cls };
+        }
+      }
+    }
+    return null;
+  };
+
   // Step 1: Search Student by Matrícula
-  const handleSearchMatricula = (e?: React.FormEvent) => {
+  const handleSearchMatricula = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setErrorMessage(null);
-    const query = matriculaInput.trim().toLowerCase();
+    const query = matriculaInput.trim();
 
     if (!query) {
       setErrorMessage('Por favor, digite o número da sua matrícula.');
@@ -85,43 +209,44 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
 
     setIsSearching(true);
 
-    setTimeout(() => {
-      let foundStudent: Student | null = null;
-      let foundClass: Classroom | null = null;
+    try {
+      // 1. Try finding in current classrooms
+      let match = findStudentByMatricula(institutionClassrooms.length > 0 ? institutionClassrooms : classrooms, query);
 
-      for (const cls of institutionClassrooms) {
-        for (const std of cls.students) {
-          const stdMatricula = (std.matricula || '').trim().toLowerCase();
-          // Match by matricula, or fallback to rollNumber match if numeric query equals rollNumber
-          if (stdMatricula && stdMatricula === query) {
-            foundStudent = std;
-            foundClass = cls;
-            break;
-          } else if (!stdMatricula && String(std.rollNumber) === query) {
-            foundStudent = std;
-            foundClass = cls;
-            break;
+      // 2. If not found, do an immediate Firestore fresh fetch to ensure up-to-date data
+      if (!match) {
+        try {
+          const snapshot = await getDocs(collection(db, COLLECTIONS.CLASSROOMS));
+          if (!snapshot.empty) {
+            const fetchedRooms: Classroom[] = [];
+            snapshot.forEach(d => fetchedRooms.push(d.data() as Classroom));
+            setClassrooms(fetchedRooms);
+            match = findStudentByMatricula(fetchedRooms, query);
           }
+        } catch (fetchErr) {
+          console.warn('Direct Firestore fetch note during search:', fetchErr);
         }
-        if (foundStudent) break;
       }
 
-      setIsSearching(false);
-
-      if (foundStudent && foundClass) {
-        setMatchedStudent(foundStudent);
-        setMatchedClassroom(foundClass);
+      if (match) {
+        setMatchedStudent(match.student);
+        setMatchedClassroom(match.classroom);
         // Save to localStorage for convenience next time
         try {
-          localStorage.setItem(STORAGE_LAST_MATRICULA, matriculaInput.trim());
-        } catch (err) {
+          localStorage.setItem(STORAGE_LAST_MATRICULA, query);
+        } catch {
           // ignore
         }
         setStep(2);
       } else {
         setErrorMessage('Matrícula não encontrada. Verifique o número digitado.');
       }
-    }, 250);
+    } catch (err) {
+      console.error('Error during student search:', err);
+      setErrorMessage('Matrícula não encontrada. Verifique o número digitado.');
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   // Step 2: Confirm and Record Attendance

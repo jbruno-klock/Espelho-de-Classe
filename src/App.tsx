@@ -56,7 +56,44 @@ const STORAGE_KEY_USERS = 'espelho_users_v2';
 const STORAGE_KEY_AUTH = 'espelho_current_user_v2';
 const STORAGE_KEY_THEME = 'espelho_theme_v2';
 
+/**
+ * ROOT COMPONENT WITH TOTAL LOGIN BYPASS FOR NFC CHECK-IN ROUTE (?nfcEntrada=1)
+ * Verifica os parâmetros da URL antes de qualquer verificação de autenticação,
+ * sessão de usuário ou tela de login do sistema.
+ */
 export default function App() {
+  const [isNfcMode, setIsNfcMode] = useState<boolean>(() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      const params = new URLSearchParams(window.location.search);
+      return params.get('nfcEntrada') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleExitNfcMode = () => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('nfcEntrada');
+      url.searchParams.delete('unidadeId');
+      window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+    } catch {
+      // ignore
+    }
+    setIsNfcMode(false);
+  };
+
+  // Se a URL contiver ?nfcEntrada=1, renderiza IMEDIATAMENTE e EXCLUSIVAMENTE a tela de Check-in NFC
+  // sem passar por nenhum bloqueio de login ou sessão de usuário
+  if (isNfcMode) {
+    return <NfcStudentCheckInView onExitCheckIn={handleExitNfcMode} />;
+  }
+
+  return <EspelhoClasseApp />;
+}
+
+function EspelhoClasseApp() {
   // Theme State (Dark / Light)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     try {
@@ -973,49 +1010,6 @@ export default function App() {
       }
     }, 350);
   };
-
-  // Check if URL specifies NFC entrance check-in mode (?nfcEntrada=1)
-  const [isNfcMode, setIsNfcMode] = useState<boolean>(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      return params.get('nfcEntrada') === '1';
-    } catch {
-      return false;
-    }
-  });
-
-  const nfcUnidadeId = (() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      return params.get('unidadeId') || institutions[0]?.id;
-    } catch {
-      return institutions[0]?.id;
-    }
-  })();
-
-  const handleExitNfcMode = () => {
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('nfcEntrada');
-      url.searchParams.delete('unidadeId');
-      window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
-    } catch (e) {
-      // ignore
-    }
-    setIsNfcMode(false);
-  };
-
-  // If student tapped the NFC sticker, render mobile-first check-in screen directly!
-  if (isNfcMode) {
-    return (
-      <NfcStudentCheckInView
-        unidadeId={nfcUnidadeId}
-        allInstitutions={institutions}
-        allClassrooms={allClassrooms}
-        onExitCheckIn={handleExitNfcMode}
-      />
-    );
-  }
 
   // If no user is logged in, show Login Screen with Password Authentication
   if (!currentUser) {

@@ -22,11 +22,14 @@ import {
   Presentation,
   DoorOpen,
   Info,
+  Globe,
   X
 } from 'lucide-react';
 import { Classroom, Student, Institution, AttendanceRecord } from '../types';
 import { subscribeToAttendance } from '../lib/firebase';
 import * as XLSX from 'xlsx';
+
+const STORAGE_KEY_PUBLIC_DOMAIN = 'espelho_nfc_public_domain_v1';
 
 interface NfcAttendanceViewProps {
   classroom: Classroom;
@@ -67,12 +70,49 @@ export const NfcAttendanceView: React.FC<NfcAttendanceViewProps> = ({
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [allAttendanceRecords, setAllAttendanceRecords] = useState<AttendanceRecord[]>([]);
 
+  // Public Domain for NFC sticker URL (defaulting to window.location.origin)
+  const [publicDomain, setPublicDomain] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_PUBLIC_DOMAIN);
+      if (saved && saved.trim()) return saved.trim();
+    } catch {
+      // ignore
+    }
+    return typeof window !== 'undefined' ? window.location.origin : '';
+  });
+
+  const handleDomainChange = (val: string) => {
+    setPublicDomain(val);
+    try {
+      localStorage.setItem(STORAGE_KEY_PUBLIC_DOMAIN, val.trim());
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleResetDomain = () => {
+    const defaultDomain = window.location.origin;
+    setPublicDomain(defaultDomain);
+    try {
+      localStorage.setItem(STORAGE_KEY_PUBLIC_DOMAIN, defaultDomain);
+    } catch {
+      // ignore
+    }
+  };
+
+  // Helper to sanitize domain
+  const cleanDomain = (domain: string) => {
+    let d = (domain || '').trim();
+    d = d.replace(/\/+$/, '');
+    return d || (typeof window !== 'undefined' ? window.location.origin : '');
+  };
+
   // NFC Entrance Sticker URL
   const nfcStickerUrl = useMemo(() => {
-    const origin = window.location.origin;
+    const baseDomain = cleanDomain(publicDomain);
     const instId = activeInstitution?.id || classroom.institutionId || 'unidade';
-    return `${origin}/?nfcEntrada=1&unidadeId=${encodeURIComponent(instId)}`;
-  }, [activeInstitution, classroom]);
+    return `${baseDomain}/?nfcEntrada=1&unidadeId=${encodeURIComponent(instId)}`;
+  }, [publicDomain, activeInstitution, classroom]);
 
   // Subscribe to real-time Firebase attendance updates
   useEffect(() => {
@@ -224,64 +264,110 @@ export const NfcAttendanceView: React.FC<NfcAttendanceViewProps> = ({
           </div>
 
           {/* Quick Actions & URL Box */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
-            {/* Copy Button */}
-            <button
-              onClick={handleCopyLink}
-              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
-                isCopied 
-                  ? 'bg-emerald-600 text-white shadow-emerald-700/20' 
-                  : 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60'
-              }`}
-              title="Copiar URL para programar no adesivo NFC ou gerar QR code da entrada"
-            >
-              {isCopied ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  <span>Link Copiado com Sucesso!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  <span>Copiar Link do Adesivo NFC (Entrada)</span>
-                </>
-              )}
-            </button>
+          <div className="flex flex-col gap-3 shrink-0">
+            {/* Domínio Público do App (Configurável para Produção) */}
+            <div className="bg-slate-50 dark:bg-[#18181f] p-3 rounded-2xl border border-slate-200 dark:border-zinc-800 space-y-1.5 min-w-[280px] sm:min-w-[340px]">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-zinc-300">
+                <label htmlFor="public-domain-input" className="flex items-center gap-1.5 cursor-pointer">
+                  <Globe className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>Domínio Público do App</span>
+                </label>
+                {publicDomain.trim() !== (typeof window !== 'undefined' ? window.location.origin : '') && (
+                  <button
+                    type="button"
+                    onClick={handleResetDomain}
+                    className="text-[10px] text-slate-500 hover:text-emerald-600 dark:text-zinc-400 dark:hover:text-emerald-400 underline cursor-pointer"
+                    title="Restaurar para a URL do preview atual"
+                  >
+                    Restaurar Padrão
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  id="public-domain-input"
+                  type="text"
+                  value={publicDomain}
+                  onChange={(e) => handleDomainChange(e.target.value)}
+                  placeholder="https://meu-sistema.vercel.app"
+                  className="w-full text-xs font-mono py-2 pl-2.5 pr-14 rounded-xl bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all"
+                />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 pointer-events-none">
+                  {publicDomain.startsWith('https://') ? 'HTTPS' : 'ORIGIN'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500 dark:text-zinc-500">
+                URL pública gravada no adesivo NFC para abrir no celular sem exigir login do Google.
+              </p>
+            </div>
 
-            {/* Test in Browser Button */}
-            <a
-              href={nfcStickerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 px-3.5 py-3 rounded-2xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-[#18181f] dark:hover:bg-[#22222a] text-slate-800 dark:text-zinc-200 border border-slate-300 dark:border-zinc-800 transition-all cursor-pointer shadow-xs"
-              title="Abrir tela móvel do aluno em nova aba para testar"
-            >
-              <ExternalLink className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Testar no Celular</span>
-            </a>
+            {/* Buttons Row */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              {/* Copy Button */}
+              <button
+                onClick={handleCopyLink}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer shadow-xs ${
+                  isCopied 
+                    ? 'bg-emerald-600 text-white shadow-emerald-700/20' 
+                    : 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60'
+                }`}
+                title="Copiar URL para programar no adesivo NFC ou gerar QR code da entrada"
+              >
+                {isCopied ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Link Copiado com Sucesso!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    <span>Copiar Link do Adesivo NFC (Entrada)</span>
+                  </>
+                )}
+              </button>
 
-            {/* QR Code Modal Button */}
-            <button
-              onClick={() => setShowQrModal(true)}
-              className="flex items-center justify-center gap-1.5 p-3 rounded-2xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-[#18181f] dark:hover:bg-[#22222a] text-slate-700 dark:text-zinc-300 border border-slate-300 dark:border-zinc-800 transition-all cursor-pointer shadow-xs"
-              title="Visualizar QR Code para imprimir ou escanear com câmera"
-            >
-              <QrCode className="w-4 h-4" />
-            </button>
+              {/* Test in Browser Button */}
+              <a
+                href={nfcStickerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 px-3.5 py-3 rounded-2xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-[#18181f] dark:hover:bg-[#22222a] text-slate-800 dark:text-zinc-200 border border-slate-300 dark:border-zinc-800 transition-all cursor-pointer shadow-xs"
+                title="Abrir tela móvel do aluno em nova aba para testar"
+              >
+                <ExternalLink className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Testar no Celular</span>
+              </a>
+
+              {/* QR Code Modal Button */}
+              <button
+                onClick={() => setShowQrModal(true)}
+                className="flex items-center justify-center gap-1.5 p-3 rounded-2xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-[#18181f] dark:hover:bg-[#22222a] text-slate-700 dark:text-zinc-300 border border-slate-300 dark:border-zinc-800 transition-all cursor-pointer shadow-xs"
+                title="Visualizar QR Code para imprimir ou escanear com câmera"
+              >
+                <QrCode className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
 
         {/* URL Pill Display */}
-        <div className="mt-3 pt-3 border-t border-slate-200/80 dark:border-zinc-800/60 flex items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-zinc-400">
-          <div className="flex items-center gap-1.5 truncate">
-            <span className="font-semibold text-slate-700 dark:text-zinc-300">URL do Adesivo:</span>
+        <div className="mt-3 pt-3 border-t border-slate-200/80 dark:border-zinc-800/60 flex items-center justify-between gap-3 text-[11px] text-slate-500 dark:text-zinc-400 flex-wrap">
+          <div className="flex items-center gap-1.5 truncate max-w-full">
+            <span className="font-semibold text-slate-700 dark:text-zinc-300 shrink-0">URL do Adesivo:</span>
             <span className="font-mono text-emerald-700 dark:text-emerald-400 truncate bg-slate-100 dark:bg-zinc-900/60 px-2 py-0.5 rounded border border-slate-200 dark:border-zinc-800">
               {nfcStickerUrl}
             </span>
           </div>
-          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
-            ● Nuvem Firestore Ativa
-          </span>
+          <div className="flex items-center gap-2.5 shrink-0">
+            {publicDomain.trim() !== (typeof window !== 'undefined' ? window.location.origin : '') && (
+              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900">
+                🌐 Domínio Personalizado
+              </span>
+            )}
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+              ● Nuvem Firestore Ativa
+            </span>
+          </div>
         </div>
       </div>
 
