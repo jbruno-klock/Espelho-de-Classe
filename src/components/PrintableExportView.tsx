@@ -13,7 +13,8 @@ import {
   GraduationCap,
   Eye,
   Camera,
-  User
+  User,
+  Lock
 } from 'lucide-react';
 import { Classroom, Institution, Student } from '../types';
 import { exportToPdf } from '../utils/exportUtils';
@@ -463,13 +464,18 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
 
                 const studentId = seatingMap[deskId];
                 const student = studentId ? studentMap.get(studentId) : null;
+                const isLocked = classroom.lockedDesks?.[deskId];
 
                 // CARTEIRAS VAZIAS: Cartões inativos visíveis com fundo levemente acinzentado e enquadramento uniforme
                 if (!student) {
                   return (
                     <div
                       key={deskId}
-                      className={`${cardHeightClass} rounded-lg sm:rounded-xl border border-dashed border-slate-200 bg-slate-100/60 flex flex-col items-center justify-center text-center transition-all`}
+                      className={`${cardHeightClass} rounded-lg sm:rounded-xl border ${
+                        isLocked 
+                          ? 'border-dashed border-rose-300 bg-rose-50/40 text-rose-700' 
+                          : 'border-dashed border-slate-200 bg-slate-100/60 text-slate-400'
+                      } flex flex-col items-center justify-center text-center transition-all`}
                     >
                       {showPhotos && (
                         <div className={`${
@@ -480,12 +486,16 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                             : isMediumCompact 
                             ? 'w-11 h-15 rounded-lg mb-1' 
                             : 'w-14 h-19 sm:w-16 sm:h-22 rounded-lg mb-1.5'
-                        } border border-dashed border-slate-300 flex items-center justify-center bg-white/40 text-slate-300`}>
-                          <User className={`${isUltraCompact ? 'w-2.5 h-2.5' : isCompact ? 'w-3.5 h-3.5' : isMediumCompact ? 'w-4 h-4' : 'w-5 h-5'} opacity-40`} />
+                        } border border-dashed ${isLocked ? 'border-rose-200 bg-rose-100/30 text-rose-400' : 'border-slate-300 bg-white/40 text-slate-300'} flex items-center justify-center`}>
+                          {isLocked ? (
+                            <Lock className={`${isUltraCompact ? 'w-2.5 h-2.5' : isCompact ? 'w-3.5 h-3.5' : isMediumCompact ? 'w-4 h-4' : 'w-5 h-5'} text-rose-500 opacity-80`} />
+                          ) : (
+                            <User className={`${isUltraCompact ? 'w-2.5 h-2.5' : isCompact ? 'w-3.5 h-3.5' : isMediumCompact ? 'w-4 h-4' : 'w-5 h-5'} opacity-40`} />
+                          )}
                         </div>
                       )}
-                      <span className={`${isUltraCompact ? 'text-[7.5px]' : isCompact ? 'text-[9px]' : 'text-[11px]'} font-medium text-slate-400 tracking-wide`}>
-                        Vazia
+                      <span className={`${isUltraCompact ? 'text-[7.5px]' : isCompact ? 'text-[9px]' : 'text-[11px]'} font-semibold tracking-wide ${isLocked ? 'text-rose-600' : 'text-slate-400'}`}>
+                        {isLocked ? 'Bloqueada' : 'Vazia'}
                       </span>
                     </div>
                   );

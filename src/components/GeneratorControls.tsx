@@ -16,7 +16,8 @@ import {
   Lightbulb,
   ArrowDownAZ,
   Columns,
-  Rows
+  Rows,
+  Lock
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Classroom, GenerationOptions, GenerationReport } from '../types';
@@ -85,6 +86,15 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
 
   const criticalConflicts = report?.conflicts.filter(c => c.severity === 'critical') || [];
   const warningConflicts = report?.conflicts.filter(c => c.severity === 'warning') || [];
+
+  const lockedDesks = classroom.lockedDesks || {};
+  const seatingMap = classroom.seatingMap || {};
+  const lockedEmptyDesksCount = Object.entries(lockedDesks).filter(
+    ([deskId, isLocked]) => isLocked && !seatingMap[deskId]
+  ).length;
+  const lockedOccupiedDesksCount = Object.entries(lockedDesks).filter(
+    ([deskId, isLocked]) => isLocked && Boolean(seatingMap[deskId])
+  ).length;
 
   return (
     <div className="bg-white dark:bg-[#121216] rounded-3xl border border-slate-200 dark:border-zinc-800/80 shadow-sm p-5 space-y-4 no-print transition-colors">
@@ -279,6 +289,30 @@ export const GeneratorControls: React.FC<GeneratorControlsProps> = ({
         </div>
 
       </div>
+
+      {/* Locked Desks Active Status Indicator */}
+      {(lockedEmptyDesksCount > 0 || lockedOccupiedDesksCount > 0) && (
+        <div className="flex items-center gap-2 flex-wrap text-xs py-2 px-3.5 rounded-2xl bg-slate-50 dark:bg-[#181820] border border-slate-200/90 dark:border-zinc-800/90 shadow-2xs">
+          <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-zinc-300">
+            <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>Regras de Bloqueio Ativas:</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {lockedOccupiedDesksCount > 0 && (
+              <span className="bg-amber-100/90 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 px-2 py-0.5 rounded-lg font-bold text-[11px] flex items-center gap-1">
+                <span>{lockedOccupiedDesksCount} aluno(s) fixado(s)</span>
+              </span>
+            )}
+            {lockedEmptyDesksCount > 0 && (
+              <span className="bg-rose-100/90 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40 px-2 py-0.5 rounded-lg font-bold text-[11px] flex items-center gap-1">
+                <Lock className="w-2.5 h-2.5 text-rose-600 dark:text-rose-400" />
+                <span>{lockedEmptyDesksCount} carteira(s) vazia(s) bloqueada(s) (não serão ocupadas)</span>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Advanced Settings Drawer */}
       {showAdvanced && (

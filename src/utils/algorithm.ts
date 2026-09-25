@@ -798,10 +798,12 @@ export function runSeatingOptimizer(
   for (let restart = 0; restart < RESTARTS; restart++) {
     let currentSeating: Record<string, string | null> = {};
 
-    // 1. Copy locked desks
-    Object.entries(classroom.seatingMap || {}).forEach(([deskId, sId]) => {
-      if (lockedDesks[deskId] && sId) {
-        currentSeating[deskId] = sId;
+    // 1. Initialize all active desks, strictly preserving locked desks (both occupied and locked empty desks)
+    activeDesks.forEach(d => {
+      if (lockedDesks[d.id]) {
+        currentSeating[d.id] = (classroom.seatingMap && classroom.seatingMap[d.id]) ? classroom.seatingMap[d.id] : null;
+      } else {
+        currentSeating[d.id] = null;
       }
     });
 
@@ -1077,6 +1079,17 @@ export function runSeatingOptimizer(
       onProgress(Math.round(((restart + 1) / RESTARTS) * 100));
     }
   }
+
+  // Ensure all active desks exist in globalBestSeating, strictly preserving locked empty desks as null
+  activeDesks.forEach(d => {
+    if (globalBestSeating[d.id] === undefined) {
+      if (lockedDesks[d.id]) {
+        globalBestSeating[d.id] = classroom.seatingMap?.[d.id] || null;
+      } else {
+        globalBestSeating[d.id] = null;
+      }
+    }
+  });
 
   const finalReport = generateReport(globalBestSeating, classroom, options);
 

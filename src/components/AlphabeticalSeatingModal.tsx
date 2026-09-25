@@ -42,9 +42,15 @@ export const AlphabeticalSeatingModal: React.FC<AlphabeticalSeatingModalProps> =
   const lockedDesks = classroom.lockedDesks || {};
   const seatingMap = classroom.seatingMap || {};
 
-  const lockedCount = useMemo(() => {
+  const lockedWithStudentCount = useMemo(() => {
     return Object.entries(lockedDesks).filter(([id, isLocked]) => isLocked && Boolean(seatingMap[id])).length;
   }, [lockedDesks, seatingMap]);
+
+  const lockedEmptyCount = useMemo(() => {
+    return Object.entries(lockedDesks).filter(([id, isLocked]) => isLocked && !seatingMap[id]).length;
+  }, [lockedDesks, seatingMap]);
+
+  const totalLockedCount = lockedWithStudentCount + lockedEmptyCount;
 
   // Special needs count
   const specialNeedsCount = useMemo(() => {
@@ -271,15 +277,18 @@ export const AlphabeticalSeatingModal: React.FC<AlphabeticalSeatingModalProps> =
                 <span className="font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
                   <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                   Manter carteiras travadas com cadeado
-                  {lockedCount > 0 && (
+                  {totalLockedCount > 0 && (
                     <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                      {lockedCount} travada{lockedCount > 1 ? 's' : ''}
+                      {totalLockedCount} travada{totalLockedCount > 1 ? 's' : ''}
                     </span>
                   )}
                 </span>
                 <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                  {lockedCount > 0 
-                    ? `Os ${lockedCount} alunos que estão fixados não serão trocados de lugar.`
+                  {totalLockedCount > 0 
+                    ? [
+                        lockedWithStudentCount > 0 ? `${lockedWithStudentCount} aluno(s) fixado(s) mantido(s)` : null,
+                        lockedEmptyCount > 0 ? `${lockedEmptyCount} carteira(s) vazia(s) bloqueada(s) que NÃO serão ocupadas` : null
+                      ].filter(Boolean).join(' e ') + '.'
                     : 'Nenhuma carteira travada no momento.'}
                 </p>
               </div>

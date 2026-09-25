@@ -161,6 +161,10 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
   const isUltraDensity = cols >= 11;
   const isExtremeDensity = cols >= 15;
 
+  const lockedEmptyCount = useMemo(() => {
+    return Object.entries(lockedDesks).filter(([deskId, locked]) => locked && !seatingMap[deskId]).length;
+  }, [lockedDesks, seatingMap]);
+
   const getDeskCoordinates = (deskId: string) => {
     const match = deskId.match(/r(\d+)_c(\d+)/);
     if (!match) return deskId;
@@ -206,8 +210,19 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-200 dark:text-zinc-300 bg-slate-800 dark:bg-zinc-900 border border-slate-700 dark:border-zinc-800 px-2.5 py-1 rounded-lg shrink-0">
-              <span>Fila 1 = Frente</span>
+            <div className="flex items-center gap-2 shrink-0">
+              {lockedEmptyCount > 0 && (
+                <div 
+                  className="flex items-center gap-1 text-[10px] font-bold text-rose-300 bg-rose-950/80 border border-rose-800/80 px-2 py-1 rounded-lg"
+                  title={`${lockedEmptyCount} carteira(s) vazia(s) travada(s) que não serão ocupadas ao gerar o espelho.`}
+                >
+                  <Lock className="w-2.5 h-2.5 text-rose-400" />
+                  <span>{lockedEmptyCount} vazia{lockedEmptyCount > 1 ? 's' : ''} bloqueada{lockedEmptyCount > 1 ? 's' : ''}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-200 dark:text-zinc-300 bg-slate-800 dark:bg-zinc-900 border border-slate-700 dark:border-zinc-800 px-2.5 py-1 rounded-lg">
+                <span>Fila 1 = Frente</span>
+              </div>
             </div>
           </div>
 
@@ -455,8 +470,10 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                         ? 'ring-2 ring-indigo-500 border-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 shadow-lg scale-102 z-10'
                         : highlightClass
                         ? highlightClass
-                        : hasConflict
-                        ? hasCriticalConflict 
+                        : isLocked 
+                        ? !student
+                          ? 'bg-rose-50/60 dark:bg-rose-950/30 border-rose-300 dark:border-rose-900/60 border-dashed text-rose-800 dark:text-rose-200 shadow-2xs hover:border-rose-400 dark:hover:border-rose-700 hover:bg-rose-100/50'
+                          : hasCriticalConflict 
                           ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-300 dark:border-rose-900/60 shadow-2xs hover:border-rose-400' 
                           : 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-300 dark:border-amber-900/60 shadow-2xs hover:border-amber-400'
                         : student
@@ -475,22 +492,38 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                         F{r + 1}•C{c + 1}
                       </span>
 
-                      {student && (
-                        <div className="flex items-center gap-0.5 sm:gap-1">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onToggleLockDesk(deskId);
-                            }}
-                            title={isLocked ? 'Desbloquear carteira' : 'Fixar aluno nesta carteira'}
-                            className={`p-0.5 sm:p-1 rounded-md transition-colors cursor-pointer ${
-                              isLocked ? 'text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/50 font-bold border border-amber-300 dark:border-amber-800/40' : 'text-slate-400 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 hover:text-slate-700 dark:hover:text-zinc-200'
-                            }`}
-                          >
-                            {isLocked ? <Lock className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> : <Unlock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />}
-                          </button>
+                      <div className="flex items-center gap-0.5 sm:gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleLockDesk(deskId);
+                          }}
+                          title={
+                            isLocked
+                              ? student
+                                ? 'Desbloquear carteira (permitir mover aluno)'
+                                : 'Destravar carteira vazia (permitir ocupação ao gerar espelho)'
+                              : student
+                              ? 'Fixar aluno nesta carteira (não mover ao gerar espelho)'
+                              : 'Bloquear carteira vazia (não ocupar ao gerar espelho)'
+                          }
+                          className={`p-0.5 sm:p-1 rounded-md transition-colors cursor-pointer ${
+                            isLocked
+                              ? student
+                                ? 'text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/50 font-bold border border-amber-300 dark:border-amber-800/40'
+                                : 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/60 font-bold border border-rose-300 dark:border-rose-800/60 shadow-2xs'
+                              : 'text-slate-400 dark:text-zinc-500 hover:bg-slate-200 dark:hover:bg-zinc-800 hover:text-slate-700 dark:hover:text-zinc-200'
+                          }`}
+                        >
+                          {isLocked ? (
+                            <Lock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                          ) : (
+                            <Unlock className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-60 hover:opacity-100" />
+                          )}
+                        </button>
 
+                        {student && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -502,11 +535,11 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                           >
                             <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                           </button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
 
-                    {/* Desk Center Content: Student Info */}
+                    {/* Desk Center Content: Student Info or Empty/Locked Desk */}
                     {student ? (
                       <div className="my-auto py-0.5">
                         <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
@@ -563,14 +596,38 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                         </div>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center my-auto text-slate-400 dark:text-zinc-500 py-1">
-                        <span className="text-[9px] sm:text-[10px] font-semibold">Vazio</span>
+                      <div className="flex flex-col items-center justify-center my-auto py-1 text-center select-none">
+                        {isLocked ? (
+                          <div className="flex flex-col items-center gap-0.5 text-rose-600 dark:text-rose-400">
+                            <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 opacity-90" />
+                            <span className="text-[8px] sm:text-[9.5px] font-extrabold uppercase tracking-tight">
+                              Bloqueada
+                            </span>
+                            <span className="text-[6.5px] sm:text-[7.5px] text-rose-500/90 dark:text-rose-300/80 font-semibold leading-none">
+                              Não ocupar
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center text-slate-400 dark:text-zinc-500">
+                            <span className="text-[9px] sm:text-[10px] font-semibold">Vazio</span>
+                          </div>
+                        )}
                       </div>
                     )}
 
                     {/* Bottom Indicator */}
-                    <div className="text-[8px] text-slate-400 dark:text-zinc-500 text-center leading-none">
-                      {isLocked ? '🔒' : ''}
+                    <div className="text-[8px] text-center leading-none">
+                      {isLocked ? (
+                        student ? (
+                          <span className="text-amber-700 dark:text-amber-400 font-semibold flex items-center justify-center gap-0.5">
+                            <Lock className="w-2 h-2 inline" /> Fixado
+                          </span>
+                        ) : (
+                          <span className="text-rose-700 dark:text-rose-400 font-semibold flex items-center justify-center gap-0.5">
+                            <Lock className="w-2 h-2 inline" /> Não ocupar
+                          </span>
+                        )
+                      ) : null}
                     </div>
 
                   </div>
