@@ -97,6 +97,7 @@ export async function buildTeacherSpreadsheetExcelJS(
   // Table Header (Row 6)
   const headers = [
     'Nº Chamada',
+    'Matrícula (NFC)',
     'Nome Completo do Aluno',
     'Apelido / Nome Social',
     'Gênero',
@@ -206,6 +207,7 @@ export async function buildTeacherSpreadsheetExcelJS(
 
         studentRowsData.push([
           s.rollNumber,
+          s.matricula || '',
           s.name,
           s.nickname || '',
           s.gender || 'M',
@@ -230,12 +232,12 @@ export async function buildTeacherSpreadsheetExcelJS(
     // Add extra empty rows for new students
     const currentCount = classroom.students.length;
     for (let r = currentCount + 1; r <= Math.max(currentCount + 15, 35); r++) {
-      studentRowsData.push([r, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      studentRowsData.push([r, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
     }
   } else {
     // Pure blank template: absolutely no sample students, clean rows ready for teacher entry with dropdowns
     for (let r = 1; r <= 40; r++) {
-      studentRowsData.push([r, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      studentRowsData.push([r, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
     }
   }
 
@@ -592,6 +594,7 @@ export function downloadTeacherSpreadsheetCSV(
     [],
     [
       'Nº Chamada',
+      'Matrícula (NFC)',
       'Nome Completo do Aluno',
       'Apelido / Nome Social',
       'Gênero',
@@ -617,6 +620,7 @@ export function downloadTeacherSpreadsheetCSV(
     classroom.students.forEach(s => {
       rows.push([
         s.rollNumber,
+        s.matricula || '',
         s.name,
         s.nickname || '',
         s.gender || 'M',
@@ -640,7 +644,7 @@ export function downloadTeacherSpreadsheetCSV(
   } else {
     // Pure blank template: no sample students
     for (let r = 1; r <= 40; r++) {
-      rows.push([r, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+      rows.push([r, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
     }
   }
 

@@ -530,9 +530,21 @@ export const SAMPLE_STUDENTS_7B: Student[] = [
 
 import { REAL_FLEMING_INSTITUTIONS, REAL_FLEMING_USERS, REAL_FLEMING_CLASSROOMS } from './initialFlemingData';
 
+SAMPLE_STUDENTS_7B.forEach((s, idx) => {
+  if (!s.matricula) {
+    s.matricula = `2026${String(s.rollNumber || idx + 1).padStart(3, '0')}`;
+  }
+});
+
 export const INITIAL_INSTITUTIONS: Institution[] = REAL_FLEMING_INSTITUTIONS;
 
 export const INITIAL_USERS: AppUser[] = REAL_FLEMING_USERS;
 
-export const INITIAL_CLASSROOMS: Classroom[] = REAL_FLEMING_CLASSROOMS;
+export const INITIAL_CLASSROOMS: Classroom[] = REAL_FLEMING_CLASSROOMS.map(cls => ({
+  ...cls,
+  students: cls.students.map((std, idx) => ({
+    ...std,
+    matricula: std.matricula || `2026${String(std.rollNumber || idx + 1).padStart(3, '0')}`
+  }))
+}));
 

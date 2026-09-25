@@ -23,9 +23,10 @@ import {
   Sun,
   Moon,
   Cloud,
-  FileText
+  FileText,
+  SmartphoneNfc
 } from 'lucide-react';
-import { Classroom, AppUser, Institution } from '../types';
+import { Classroom, AppUser, Institution, MainTabType } from '../types';
 import { generateUserManualPdf } from '../utils/manualPdfGenerator';
 
 interface NavbarProps {
@@ -51,8 +52,8 @@ interface NavbarProps {
   onImportBackup: (data: Classroom[]) => void;
   onResetToSample: () => void;
   onLogout: () => void;
-  activeTab: 'map' | 'students' | 'matrix' | 'print' | 'master_admin';
-  setActiveTab: (tab: 'map' | 'students' | 'matrix' | 'print' | 'master_admin') => void;
+  activeTab: MainTabType;
+  setActiveTab: (tab: MainTabType) => void;
   onSwitchSimulatedUser: (user: AppUser) => void;
   onReturnToMasterDashboard?: () => void;
   onForceSync?: () => Promise<void>;
@@ -409,6 +410,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Printer className="w-4 h-4" />
                 Impressão / PDF
               </button>
+              <button
+                onClick={() => setActiveTab('nfc_attendance')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'nfc_attendance'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-200/70 dark:hover:bg-zinc-800/40'
+                }`}
+              >
+                <SmartphoneNfc className="w-4 h-4" />
+                Frequência NFC
+              </button>
             </div>
           )}
 
@@ -532,6 +544,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Printer className="w-3.5 h-3.5" />
               Impressão
+            </button>
+            <button
+              onClick={() => setActiveTab('nfc_attendance')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap cursor-pointer ${
+                activeTab === 'nfc_attendance' ? 'bg-emerald-600 text-white' : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+              }`}
+            >
+              <SmartphoneNfc className="w-3.5 h-3.5" />
+              Frequência NFC
             </button>
           </div>
         )}

@@ -24,6 +24,7 @@ type TargetField =
   | 'none'
   | 'name'
   | 'nickname'
+  | 'matricula'
   | 'rollNumber'
   | 'gender'
   | 'behavior'
@@ -46,6 +47,7 @@ const FIELD_LABELS: Record<TargetField, string> = {
   none: 'Ignorar Coluna',
   name: 'Nome Completo',
   nickname: 'Apelido / Nome Social',
+  matricula: 'Matrícula (Código Único NFC)',
   rollNumber: 'Nº Chamada',
   gender: 'Gênero (M / F)',
   behavior: 'Perfil Comportamental',
@@ -286,8 +288,14 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
       return 'nickname';
     }
     if (
-      /^(numero|num|nº|chamada|roll|ordem|id|matricula|ra)$/.test(h) || 
-      h.includes('chamada') || h.includes('numero') || h.includes('nº') || h.includes('matricula')
+      /^(matricula|matr|ra|registro|codigo|cod|cod_aluno)$/.test(h) ||
+      h.includes('matricula') || h.includes('código') || h.includes('codigo')
+    ) {
+      return 'matricula';
+    }
+    if (
+      /^(numero|num|nº|chamada|roll|ordem|id)$/.test(h) || 
+      h.includes('chamada') || h.includes('numero') || h.includes('nº')
     ) {
       return 'rollNumber';
     }
@@ -326,6 +334,7 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
         none: '',
         name: '',
         nickname: '',
+        matricula: '',
         rollNumber: '',
         gender: '',
         behavior: '',
@@ -447,6 +456,7 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
       const newStudent: Student = {
         id: `std-csv-${Date.now()}-${rowIdx}-${Math.random().toString(36).substring(2, 6)}`,
         rollNumber: roll,
+        matricula: rowData.matricula?.trim() || undefined,
         name: cleanName || `Aluno Linha ${rowIdx + 1}`,
         nickname: rowData.nickname?.trim() || undefined,
         gender,

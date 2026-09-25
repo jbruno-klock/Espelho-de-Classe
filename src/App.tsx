@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
-import { Classroom, Student, StudentRelation, GenerationOptions, GenerationReport, RoomConfig, Institution, AppUser, SeatingPlanCategory, SavedSeatingPlan, AlphabeticalGenerationOptions } from './types';
+import { Classroom, Student, StudentRelation, GenerationOptions, GenerationReport, RoomConfig, Institution, AppUser, SeatingPlanCategory, SavedSeatingPlan, AlphabeticalGenerationOptions, MainTabType } from './types';
 import { INITIAL_CLASSROOMS, INITIAL_INSTITUTIONS, INITIAL_USERS, createDefaultRoomConfig } from './utils/sampleData';
 import { runSeatingOptimizer, generateReport, autoResolveAllConflicts, generateAlphabeticalSeating } from './utils/algorithm';
 import { exportClassroomToCSV, exportBackupJSON, exportToPdf } from './utils/exportUtils';
@@ -47,6 +47,8 @@ import { UserModal } from './components/UserModal';
 import { ClearMapModal } from './components/ClearMapModal';
 import { ResetDataModal } from './components/ResetDataModal';
 import { AlphabeticalSeatingModal } from './components/AlphabeticalSeatingModal';
+import { NfcAttendanceView } from './components/NfcAttendanceView';
+import { NfcStudentCheckInView } from './components/NfcStudentCheckInView';
 
 const STORAGE_KEY_CLASSROOMS = 'espelho_classe_data_v2';
 const STORAGE_KEY_INSTITUTIONS = 'espelho_institutions_v2';
@@ -248,7 +250,7 @@ export default function App() {
     }
   }, [effectiveInstitutionId, visibleClassrooms, activeClassroomId]);
 
-  const [activeTab, setActiveTab] = useState<'map' | 'students' | 'matrix' | 'print' | 'master_admin'>('map');
+  const [activeTab, setActiveTab] = useState<MainTabType>('map');
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Modals state
@@ -972,6 +974,49 @@ export default function App() {
     }, 350);
   };
 
+  // Check if URL specifies NFC entrance check-in mode (?nfcEntrada=1)
+  const [isNfcMode, setIsNfcMode] = useState<boolean>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('nfcEntrada') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const nfcUnidadeId = (() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('unidadeId') || institutions[0]?.id;
+    } catch {
+      return institutions[0]?.id;
+    }
+  })();
+
+  const handleExitNfcMode = () => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('nfcEntrada');
+      url.searchParams.delete('unidadeId');
+      window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+    } catch (e) {
+      // ignore
+    }
+    setIsNfcMode(false);
+  };
+
+  // If student tapped the NFC sticker, render mobile-first check-in screen directly!
+  if (isNfcMode) {
+    return (
+      <NfcStudentCheckInView
+        unidadeId={nfcUnidadeId}
+        allInstitutions={institutions}
+        allClassrooms={allClassrooms}
+        onExitCheckIn={handleExitNfcMode}
+      />
+    );
+  }
+
   // If no user is logged in, show Login Screen with Password Authentication
   if (!currentUser) {
     return (
@@ -1173,6 +1218,20 @@ export default function App() {
               setEditingInstitution(activeInstitution || null);
               setIsInstitutionModalOpen(true);
             } : undefined}
+          />
+        )}
+
+        {/* VIEW: NFC REAL-TIME ATTENDANCE */}
+        {activeTab === 'nfc_attendance' && (
+          <NfcAttendanceView
+            classroom={activeClassroom}
+            allClassrooms={visibleClassrooms}
+            activeInstitution={activeInstitution}
+            theme={theme}
+            onSelectStudent={(student) => {
+              setEditingStudent(student);
+              setIsStudentModalOpen(true);
+            }}
           />
         )}
       </main>

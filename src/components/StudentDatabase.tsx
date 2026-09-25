@@ -56,6 +56,7 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
   const filteredStudents = students.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
       (s.nickname && s.nickname.toLowerCase().includes(search.toLowerCase())) ||
+      (s.matricula && s.matricula.toLowerCase().includes(search.toLowerCase())) ||
       s.rollNumber.toString().includes(search);
     
     const matchesBehavior = filterBehavior === 'all' || s.behavior === filterBehavior;
@@ -220,6 +221,7 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
                 <tr>
                   <th className="py-3.5 px-4 w-16 text-center">Nº</th>
                   <th className="py-3.5 px-4">Aluno(a)</th>
+                  <th className="py-3.5 px-4">Matrícula (NFC)</th>
                   <th className="py-3.5 px-4">Comportamento</th>
                   <th className="py-3.5 px-4">Necessidades & Inclusão</th>
                   <th className="py-3.5 px-4">Pode Ficar Perto</th>
@@ -273,6 +275,17 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
                           <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-normal">
                             "{student.nickname}"
                           </span>
+                        )}
+                      </td>
+
+                      {/* Matricula (NFC) */}
+                      <td className="py-3.5 px-4">
+                        {student.matricula ? (
+                          <span className="inline-flex items-center gap-1 font-mono font-bold text-[11px] px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/60 shadow-xs">
+                            {student.matricula}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-zinc-500 text-xs italic">Não informada</span>
                         )}
                       </td>
 

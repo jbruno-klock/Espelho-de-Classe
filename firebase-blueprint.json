@@ -53,6 +53,25 @@
         "updatedAt": { "type": "number" }
       },
       "required": ["id", "institutionId", "name", "roomRows", "roomCols"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily real-time student check-in records via NFC entrance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "institutionId": { "type": "string" },
+        "classroomId": { "type": "string" },
+        "classroomName": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "matricula": { "type": "string" },
+        "date": { "type": "string" },
+        "entryTime": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "source": { "type": "string" }
+      },
+      "required": ["id", "institutionId", "classroomId", "studentId", "matricula", "date", "entryTime"]
     }
   },
   "firestore": {
@@ -67,6 +86,10 @@
     "classrooms": {
       "entity": "Classroom",
       "description": "Collection of classrooms and seating maps"
+    },
+    "attendance": {
+      "entity": "AttendanceRecord",
+      "description": "Collection of real-time student attendance records"
     }
   }
 }

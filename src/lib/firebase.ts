@@ -7,11 +7,12 @@ import {
   deleteDoc,
   onSnapshot,
   getDocs,
+  getDoc,
   writeBatch,
   Unsubscribe
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { Institution, AppUser, Classroom } from '../types';
+import { Institution, AppUser, Classroom, AttendanceRecord } from '../types';
 import { INITIAL_INSTITUTIONS, INITIAL_USERS, INITIAL_CLASSROOMS } from '../utils/sampleData';
 
 // Initialize Firebase App
@@ -29,7 +30,8 @@ export const db = getFirestore(
 export const COLLECTIONS = {
   INSTITUTIONS: 'institutions',
   USERS: 'users',
-  CLASSROOMS: 'classrooms'
+  CLASSROOMS: 'classrooms',
+  ATTENDANCE: 'attendance'
 } as const;
 
 // Helper to sanitize objects for Firestore (removes undefined values that crash Firestore)
@@ -217,5 +219,205 @@ export async function pushAllLocalDataToCloud(
     console.log('✅ All local data successfully pushed to Firestore cloud.');
   } catch (e) {
     console.error('Error pushing all data to cloud:', e);
+  }
+}
+
+const ATTENDANCE_STORAGE_PREFIX = 'espelho_nfc_attendance_';
+
+function getLocalAttendanceKey(institutionId: string): string {
+  return `${ATTENDANCE_STORAGE_PREFIX}${institutionId}`;
+}
+
+export function getLocalAttendanceRecords(institutionId: string): AttendanceRecord[] {
+  try {
+    const raw = localStorage.getItem(getLocalAttendanceKey(institutionId));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.error('Error reading local attendance records:', e);
+  }
+  return [];
+}
+
+export function saveLocalAttendanceRecord(record: AttendanceRecord): void {
+  try {
+    const current = getLocalAttendanceRecords(record.institutionId);
+    const existingIndex = current.findIndex(r => r.id === record.id);
+    let updated: AttendanceRecord[];
+    if (existingIndex >= 0) {
+      updated = [...current];
+      updated[existingIndex] = record;
+    } else {
+      updated = [record, ...current];
+    }
+    localStorage.setItem(getLocalAttendanceKey(record.institutionId), JSON.stringify(updated));
+  } catch (e) {
+    console.error('Error saving local attendance record:', e);
+  }
+}
+
+/**
+ * Record attendance entry from NFC check-in.
+ * If the student already checked in today (YYYY-MM-DD), the original entry time is preserved.
+ */
+export async function recordAttendanceEntry(entry: {
+  institutionId: string;
+  classroomId: string;
+  classroomName: string;
+  studentId: string;
+  studentName: string;
+  matricula: string;
+  date: string; // 'YYYY-MM-DD'
+  entryTime: string; // 'HH:mm:ss'
+  source?: 'nfc' | 'manual';
+}): Promise<{
+  success: boolean;
+  isFirstToday: boolean;
+  record: AttendanceRecord;
+  originalTime?: string;
+}> {
+  const docId = `${entry.institutionId}_${entry.studentId}_${entry.date}`;
+
+  // 1. Check local cache first
+  const localList = getLocalAttendanceRecords(entry.institutionId);
+  const existingLocal = localList.find(r => r.id === docId);
+
+  try {
+    // 2. Check cloud document in Firestore
+    const docRef = doc(db, COLLECTIONS.ATTENDANCE, docId);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      const existingData = docSnap.data() as AttendanceRecord;
+      saveLocalAttendanceRecord(existingData);
+      return {
+        success: true,
+        isFirstToday: false,
+        record: existingData,
+        originalTime: existingData.entryTime || existingData.date
+      };
+    }
+
+    if (existingLocal) {
+      // Sync to cloud if locally found but not yet in firestore
+      await setDoc(docRef, sanitizeForFirestore(existingLocal), { merge: true });
+      return {
+        success: true,
+        isFirstToday: false,
+        record: existingLocal,
+        originalTime: existingLocal.entryTime
+      };
+    }
+
+    // 3. New first-time attendance record for today!
+    const newRecord: AttendanceRecord = {
+      id: docId,
+      institutionId: entry.institutionId,
+      classroomId: entry.classroomId,
+      classroomName: entry.classroomName,
+      studentId: entry.studentId,
+      studentName: entry.studentName,
+      matricula: entry.matricula,
+      date: entry.date,
+      entryTime: entry.entryTime,
+      timestamp: Date.now(),
+      source: entry.source || 'nfc'
+    };
+
+    // Save in cloud
+    await setDoc(docRef, sanitizeForFirestore(newRecord));
+    // Save locally
+    saveLocalAttendanceRecord(newRecord);
+
+    return {
+      success: true,
+      isFirstToday: true,
+      record: newRecord
+    };
+  } catch (error) {
+    console.warn('Firestore attendance save warning, falling back to local storage:', error);
+
+    // If offline or firestore error, ensure local persistence
+    if (existingLocal) {
+      return {
+        success: true,
+        isFirstToday: false,
+        record: existingLocal,
+        originalTime: existingLocal.entryTime
+      };
+    }
+
+    const fallbackRecord: AttendanceRecord = {
+      id: docId,
+      institutionId: entry.institutionId,
+      classroomId: entry.classroomId,
+      classroomName: entry.classroomName,
+      studentId: entry.studentId,
+      studentName: entry.studentName,
+      matricula: entry.matricula,
+      date: entry.date,
+      entryTime: entry.entryTime,
+      timestamp: Date.now(),
+      source: entry.source || 'nfc'
+    };
+    saveLocalAttendanceRecord(fallbackRecord);
+
+    return {
+      success: true,
+      isFirstToday: true,
+      record: fallbackRecord
+    };
+  }
+}
+
+/**
+ * Real-time listener for attendance records in an institution.
+ */
+export function subscribeToAttendance(
+  institutionId: string,
+  onUpdate: (records: AttendanceRecord[]) => void,
+  onError?: (err: unknown) => void
+): () => void {
+  // First, provide cached records immediately for zero-delay UI
+  const initialCached = getLocalAttendanceRecords(institutionId);
+  if (initialCached.length > 0) {
+    onUpdate(initialCached);
+  }
+
+  try {
+    const unsub = onSnapshot(
+      collection(db, COLLECTIONS.ATTENDANCE),
+      (snapshot) => {
+        const records: AttendanceRecord[] = [];
+        snapshot.forEach((d) => {
+          const data = d.data() as AttendanceRecord;
+          if (data.institutionId === institutionId) {
+            records.push(data);
+          }
+        });
+
+        // Merge with local records
+        const local = getLocalAttendanceRecords(institutionId);
+        const map = new Map<string, AttendanceRecord>();
+        local.forEach(r => map.set(r.id, r));
+        records.forEach(r => map.set(r.id, r));
+        const merged = Array.from(map.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+        localStorage.setItem(getLocalAttendanceKey(institutionId), JSON.stringify(merged));
+        onUpdate(merged);
+      },
+      (error) => {
+        console.warn('Realtime attendance sync warning:', error);
+        onError?.(error);
+      }
+    );
+
+    return unsub;
+  } catch (err) {
+    console.warn('Failed to attach attendance snapshot listener:', err);
+    onError?.(err);
+    return () => {};
   }
 }

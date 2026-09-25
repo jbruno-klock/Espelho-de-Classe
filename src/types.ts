@@ -48,6 +48,7 @@ export const DEFAULT_ANTI_AFFINITY_CATEGORIES = [
 
 export interface Student {
   id: string;
+  matricula?: string; // Código único / Matrícula do aluno por unidade
   rollNumber: number; // Número da chamada (1, 2, 3...)
   name: string;
   nickname?: string;
@@ -221,4 +222,20 @@ export interface GenerationReport {
   talkativeIsolated: number;
   totalTalkative: number;
   summary: string;
+}
+
+export type MainTabType = 'map' | 'students' | 'matrix' | 'print' | 'master_admin' | 'nfc_attendance';
+
+export interface AttendanceRecord {
+  id: string; // `${institutionId}_${studentId}_${date}`
+  institutionId: string;
+  classroomId: string;
+  classroomName: string;
+  studentId: string;
+  studentName: string;
+  matricula: string;
+  date: string; // 'YYYY-MM-DD'
+  entryTime: string; // 'HH:mm:ss'
+  timestamp: number;
+  source?: 'nfc' | 'manual';
 }

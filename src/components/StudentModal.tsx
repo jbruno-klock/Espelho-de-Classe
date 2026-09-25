@@ -81,6 +81,9 @@ export const StudentModal: React.FC<StudentModalProps> = ({
 
   const [name, setName] = useState(initialStudent?.name || '');
   const [nickname, setNickname] = useState(initialStudent?.nickname || '');
+  const [matricula, setMatricula] = useState(
+    initialStudent?.matricula || (initialStudent ? '' : `2026${String(nextRollNumber).padStart(3, '0')}`)
+  );
   const [rollNumber, setRollNumber] = useState(initialStudent?.rollNumber || nextRollNumber);
   const [gender, setGender] = useState<Gender>(initialStudent?.gender || 'M');
   const [avatarColor, setAvatarColor] = useState(
@@ -268,6 +271,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
     const studentData: Student = {
       id: initialStudent?.id || `std-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       rollNumber: Number(rollNumber),
+      matricula: matricula.trim() || undefined,
       name: name.trim(),
       nickname: nickname.trim() || undefined,
       gender,
@@ -352,7 +356,22 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                 />
               </div>
 
-              <div className="sm:col-span-6">
+              <div className="sm:col-span-3">
+                <label className="block text-xs font-bold text-slate-800 dark:text-zinc-300 mb-1 flex items-center justify-between">
+                  <span>Matrícula *</span>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-normal">NFC / Única</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={matricula}
+                  onChange={(e) => setMatricula(e.target.value)}
+                  placeholder="Ex: 2026042"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-[#181c22] border border-slate-300 dark:border-zinc-800 rounded-xl text-sm font-mono font-bold text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 dark:placeholder:text-zinc-600 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="sm:col-span-4">
                 <label className="block text-xs font-bold text-slate-800 dark:text-zinc-300 mb-1">
                   Nome Completo *
                 </label>
@@ -366,7 +385,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
                 />
               </div>
 
-              <div className="sm:col-span-4">
+              <div className="sm:col-span-3">
                 <label className="block text-xs font-bold text-slate-800 dark:text-zinc-300 mb-1">
                   Apelido / Tratamento
                 </label>
