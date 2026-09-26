@@ -27,6 +27,8 @@ import {
 } from 'lucide-react';
 import { Classroom, Student, Institution, AttendanceRecord } from '../types';
 import { subscribeToAttendance } from '../lib/firebase';
+import { NfcDailyConference } from './nfc/NfcDailyConference';
+import { NfcMonthlyReport } from './nfc/NfcMonthlyReport';
 import * as XLSX from 'xlsx';
 
 const STORAGE_KEY_PUBLIC_DOMAIN = 'espelho_nfc_public_domain_v1';
@@ -35,6 +37,9 @@ interface NfcAttendanceViewProps {
   classroom: Classroom;
   allClassrooms: Classroom[];
   activeInstitution?: Institution;
+  institutions?: Institution[];
+  onSelectInstitution?: (institutionId: string) => void;
+  isMaster?: boolean;
   theme: 'dark' | 'light';
   onSelectStudent?: (student: Student) => void;
 }
@@ -43,6 +48,9 @@ export const NfcAttendanceView: React.FC<NfcAttendanceViewProps> = ({
   classroom,
   allClassrooms,
   activeInstitution,
+  institutions,
+  onSelectInstitution,
+  isMaster,
   theme,
   onSelectStudent,
 }) => {
@@ -65,7 +73,7 @@ export const NfcAttendanceView: React.FC<NfcAttendanceViewProps> = ({
   // State
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateStr());
   const [selectedMonth, setSelectedMonth] = useState<string>(getTodayMonthStr());
-  const [activeSubTab, setActiveSubTab] = useState<'map' | 'report'>('map');
+  const [activeSubTab, setActiveSubTab] = useState<'map' | 'daily' | 'monthly'>('map');
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [allAttendanceRecords, setAllAttendanceRecords] = useState<AttendanceRecord[]>([]);
@@ -372,41 +380,52 @@ export const NfcAttendanceView: React.FC<NfcAttendanceViewProps> = ({
       </div>
 
       {/* ======================================================== */}
-      {/* FILTER BAR & KPIS                                        */}
+      {/* FILTER BAR & SUB-VIEWS NAVIGATION                        */}
       {/* ======================================================== */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
         
-        {/* Date Selector & Mode Tabs */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Sub-tab navigation */}
-          <div className="flex items-center bg-white dark:bg-[#121216] p-1 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs">
-            <button
-              onClick={() => setActiveSubTab('map')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeSubTab === 'map'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/40'
-              }`}
-            >
-              <Grid className="w-4 h-4" />
-              <span>Mapa em Tempo Real</span>
-            </button>
+        {/* Sub-tab navigation */}
+        <div className="flex items-center bg-white dark:bg-[#121216] p-1.5 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs flex-wrap gap-1">
+          <button
+            onClick={() => setActiveSubTab('map')}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeSubTab === 'map'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/40'
+            }`}
+          >
+            <Grid className="w-4 h-4" />
+            <span>1. Mapa de Sala (Tempo Real)</span>
+          </button>
 
-            <button
-              onClick={() => setActiveSubTab('report')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeSubTab === 'report'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/40'
-              }`}
-            >
-              <Table className="w-4 h-4" />
-              <span>Relatório Mensal</span>
-            </button>
-          </div>
+          <button
+            onClick={() => setActiveSubTab('daily')}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeSubTab === 'daily'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/40'
+            }`}
+          >
+            <UserCheck className="w-4 h-4" />
+            <span>2. Conferência Diária</span>
+          </button>
 
-          {/* Date Picker for Map View */}
-          {activeSubTab === 'map' && (
+          <button
+            onClick={() => setActiveSubTab('monthly')}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeSubTab === 'monthly'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/40'
+            }`}
+          >
+            <Table className="w-4 h-4" />
+            <span>3. Relatório Mensal Consolidado</span>
+          </button>
+        </div>
+
+        {/* Map View Date & KPIs (Only when Map view is active) */}
+        {activeSubTab === 'map' && (
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-1.5 bg-white dark:bg-[#121216] p-1 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs">
               <button
                 onClick={() => handleStepDate('prev')}
@@ -443,60 +462,24 @@ export const NfcAttendanceView: React.FC<NfcAttendanceViewProps> = ({
                 </button>
               )}
             </div>
-          )}
 
-          {/* Month Picker for Report View */}
-          {activeSubTab === 'report' && (
-            <div className="flex items-center gap-2 bg-white dark:bg-[#121216] px-3 py-1.5 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-xs">
-              <span className="text-xs text-slate-500 font-semibold">Mês:</span>
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-transparent font-bold text-xs text-slate-900 dark:text-zinc-100 focus:outline-none cursor-pointer"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Summary Counter KPIs */}
-        <div className="grid grid-cols-3 gap-2.5">
-          {/* Total */}
-          <div className="bg-white dark:bg-[#121216] border border-slate-200 dark:border-zinc-800/80 rounded-2xl px-4 py-2.5 shadow-xs flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 flex items-center justify-center shrink-0">
-              <Users className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Total Alunos</p>
-              <p className="text-lg font-black text-slate-900 dark:text-zinc-100 font-display">{totalStudents}</p>
-            </div>
-          </div>
-
-          {/* Present */}
-          <div className="bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl px-4 py-2.5 shadow-xs flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 flex items-center justify-center shrink-0">
-              <UserCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-400">Presentes</p>
-                <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-300">({presentPercentage}%)</span>
+            {/* Classroom Map KPIs */}
+            <div className="flex items-center gap-2">
+              <div className="bg-white dark:bg-[#121216] border border-slate-200 dark:border-zinc-800/80 rounded-2xl px-3 py-1.5 shadow-xs flex items-center gap-2">
+                <Users className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">{totalStudents} alunos</span>
               </div>
-              <p className="text-lg font-black text-emerald-800 dark:text-emerald-300 font-display">{presentCount}</p>
+              <div className="bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/50 rounded-2xl px-3 py-1.5 shadow-xs flex items-center gap-2">
+                <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">{presentCount} presentes ({presentPercentage}%)</span>
+              </div>
+              <div className="bg-white dark:bg-[#121216] border border-slate-200 dark:border-zinc-800/80 rounded-2xl px-3 py-1.5 shadow-xs flex items-center gap-2">
+                <UserX className="w-3.5 h-3.5 text-amber-500" />
+                <span className="text-xs font-bold text-slate-600 dark:text-zinc-400">{absentCount} ausentes</span>
+              </div>
             </div>
           </div>
-
-          {/* Absent */}
-          <div className="bg-white dark:bg-[#121216] border border-slate-200 dark:border-zinc-800/80 rounded-2xl px-4 py-2.5 shadow-xs flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <UserX className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">Ausentes</p>
-              <p className="text-lg font-black text-slate-700 dark:text-zinc-300 font-display">{absentCount}</p>
-            </div>
-          </div>
-        </div>
+        )}
 
       </div>
 
@@ -720,118 +703,32 @@ export const NfcAttendanceView: React.FC<NfcAttendanceViewProps> = ({
       )}
 
       {/* ======================================================== */}
-      {/* SUB-TAB 2: RELATÓRIO MENSAL DE ENTRADAS                  */}
+      {/* SUB-TAB 2: CONFERÊNCIA DIÁRIA DA INSTITUIÇÃO             */}
       {/* ======================================================== */}
-      {activeSubTab === 'report' && (
-        <div className="bg-white dark:bg-[#121216] rounded-3xl p-5 sm:p-6 border border-slate-200 dark:border-zinc-800/80 shadow-xs space-y-4">
-          
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-zinc-800">
-            <div>
-              <h3 className="font-bold text-base text-slate-900 dark:text-zinc-100 font-display">
-                Histórico Mensal de Entradas ({selectedMonth})
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-zinc-400">
-                Lista de todos os check-ins registrados via adesivo NFC da portaria nesta turma ao longo do mês.
-              </p>
-            </div>
+      {activeSubTab === 'daily' && (
+        <NfcDailyConference
+          classroom={classroom}
+          allClassrooms={allClassrooms}
+          activeInstitution={activeInstitution}
+          institutions={institutions}
+          onSelectInstitution={onSelectInstitution}
+          isMaster={isMaster}
+          allAttendanceRecords={allAttendanceRecords}
+          onSelectStudent={onSelectStudent}
+        />
+      )}
 
-            <button
-              onClick={handleDownloadExcelReport}
-              disabled={monthlyRecords.length === 0}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Baixar Relatório em Excel (.xlsx)</span>
-            </button>
-          </div>
-
-          {/* Table */}
-          {monthlyRecords.length === 0 ? (
-            <div className="text-center py-12 space-y-2">
-              <Calendar className="w-8 h-8 text-slate-400 mx-auto" />
-              <p className="text-sm font-bold text-slate-700 dark:text-zinc-300">
-                Nenhum registro de entrada encontrado para o mês {selectedMonth}
-              </p>
-              <p className="text-xs text-slate-500">
-                Assim que os alunos realizarem check-in pelo adesivo da portaria, as entradas aparecerão aqui automaticamente.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-800 dark:text-zinc-300">
-                <thead className="bg-slate-100 dark:bg-[#16161c] text-slate-800 dark:text-zinc-400 font-bold border-b border-slate-200 dark:border-zinc-800 uppercase tracking-wider text-[10px]">
-                  <tr>
-                    <th className="py-3 px-4">Aluno(a)</th>
-                    <th className="py-3 px-4">Matrícula</th>
-                    <th className="py-3 px-4">Data</th>
-                    <th className="py-3 px-4">Horário de Entrada</th>
-                    <th className="py-3 px-4">Origem</th>
-                    <th className="py-3 px-4 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60">
-                  {monthlyRecords.map((record) => {
-                    const student = classroom.students.find(s => s.id === record.studentId);
-                    const [yyyy, mm, dd] = record.date.split('-');
-                    const formattedDate = `${dd}/${mm}/${yyyy}`;
-
-                    return (
-                      <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-zinc-800/30 transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            {student?.photoUrl ? (
-                              <img
-                                src={student.photoUrl}
-                                alt={record.studentName}
-                                className="w-6 h-7 rounded object-cover border border-slate-300 dark:border-zinc-700"
-                              />
-                            ) : (
-                              <div
-                                className="w-6 h-6 rounded-full text-[10px] font-bold text-white flex items-center justify-center shrink-0"
-                                style={{ backgroundColor: student?.avatarColor || '#10b981' }}
-                              >
-                                {student?.rollNumber || '•'}
-                              </div>
-                            )}
-                            <span className="font-bold text-slate-900 dark:text-zinc-100">
-                              {record.studentName}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="py-3 px-4 font-mono font-bold text-slate-700 dark:text-zinc-300">
-                          {record.matricula}
-                        </td>
-
-                        <td className="py-3 px-4 font-mono">
-                          {formattedDate}
-                        </td>
-
-                        <td className="py-3 px-4">
-                          <span className="inline-flex items-center gap-1 font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-300 dark:border-emerald-800/60">
-                            <Clock className="w-3 h-3" />
-                            {record.entryTime}
-                          </span>
-                        </td>
-
-                        <td className="py-3 px-4 text-slate-500">
-                          {record.source === 'nfc' ? 'Adesivo NFC Portaria' : 'Check-in Digital'}
-                        </td>
-
-                        <td className="py-3 px-4 text-right">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/20">
-                            Presente
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-        </div>
+      {/* ======================================================== */}
+      {/* SUB-TAB 3: RELATÓRIO MENSAL CONSOLIDADO                  */}
+      {/* ======================================================== */}
+      {activeSubTab === 'monthly' && (
+        <NfcMonthlyReport
+          classroom={classroom}
+          allClassrooms={allClassrooms}
+          activeInstitution={activeInstitution}
+          allAttendanceRecords={allAttendanceRecords}
+          onSelectStudent={onSelectStudent}
+        />
       )}
 
       {/* ======================================================== */}

@@ -1213,6 +1213,11 @@ function EspelhoClasseApp() {
             classroom={activeClassroom}
             allClassrooms={visibleClassrooms}
             activeInstitution={activeInstitution}
+            institutions={institutions}
+            onSelectInstitution={(instId) => {
+              setMasterSelectedInstitutionId(instId);
+            }}
+            isMaster={isMaster}
             theme={theme}
             onSelectStudent={(student) => {
               setEditingStudent(student);

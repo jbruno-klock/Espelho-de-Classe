@@ -439,6 +439,34 @@ export async function recordAttendanceEntry(entry: {
 }
 
 /**
+ * Remove an attendance record (e.g. if entered by mistake or canceled by teacher/coordination).
+ */
+export async function removeAttendanceRecord(
+  institutionId: string,
+  recordId: string
+): Promise<boolean> {
+  try {
+    // 1. Remove from local storage cache
+    const current = getLocalAttendanceRecords(institutionId);
+    const updated = current.filter(r => r.id !== recordId);
+    localStorage.setItem(getLocalAttendanceKey(institutionId), JSON.stringify(updated));
+
+    // 2. Remove from Firestore
+    try {
+      await ensureAnonymousAuth();
+      const docRef = doc(db, COLLECTIONS.ATTENDANCE, recordId);
+      await deleteDoc(docRef);
+    } catch (fsErr) {
+      console.warn('Could not delete attendance record from Firestore, removed locally:', fsErr);
+    }
+    return true;
+  } catch (err) {
+    console.error('Error removing attendance record:', err);
+    return false;
+  }
+}
+
+/**
  * Real-time listener for attendance records in an institution.
  */
 export function subscribeToAttendance(
