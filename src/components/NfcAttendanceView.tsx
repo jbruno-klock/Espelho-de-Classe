@@ -633,10 +633,12 @@ export const NfcAttendanceView: React.FC<NfcAttendanceViewProps> = ({
                       {student ? (
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
-                            {student.photoUrl ? (
+                            {(student.photoUrl || student.foto || (student as any).avatar || (student as any).image) ? (
                               <img
-                                src={student.photoUrl}
+                                src={student.photoUrl || student.foto || (student as any).avatar || (student as any).image}
                                 alt={student.name}
+                                referrerPolicy="no-referrer"
+                                crossOrigin="anonymous"
                                 className="w-5 h-6 rounded object-cover border border-slate-300 dark:border-zinc-700"
                               />
                             ) : (

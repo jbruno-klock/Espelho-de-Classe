@@ -244,11 +244,13 @@ export const StudentDatabase: React.FC<StudentDatabaseProps> = ({
                       
                       {/* Roll Number & Photo Badge */}
                       <td className="py-3.5 px-4 text-center">
-                        {student.photoUrl ? (
+                        {(student.photoUrl || student.foto || (student as any).avatar || (student as any).image) ? (
                           <div className="relative inline-block">
                             <img
-                              src={student.photoUrl}
+                              src={student.photoUrl || student.foto || (student as any).avatar || (student as any).image}
                               alt={student.name}
+                              referrerPolicy="no-referrer"
+                              crossOrigin="anonymous"
                               className="w-7 h-9 rounded-lg object-cover border border-slate-200 dark:border-zinc-700 shadow-xs block"
                             />
                             <span 

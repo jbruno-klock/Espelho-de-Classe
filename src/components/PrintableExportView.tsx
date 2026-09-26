@@ -535,9 +535,9 @@ export const PrintableExportView: React.FC<PrintableExportViewProps> = ({
                             : 'w-14 h-19 sm:w-16 sm:h-22 rounded-lg my-1'
                         } overflow-hidden border border-slate-200 shadow-2xs shrink-0 flex items-center justify-center bg-slate-100 relative`}
                       >
-                        {student.photoUrl ? (
+                        {(student.photoUrl || student.foto || (student as any).avatar || (student as any).image) ? (
                           <img
-                            src={student.photoUrl}
+                            src={student.photoUrl || student.foto || (student as any).avatar || (student as any).image}
                             alt={student.name}
                             className="w-full h-full object-cover block"
                             crossOrigin="anonymous"

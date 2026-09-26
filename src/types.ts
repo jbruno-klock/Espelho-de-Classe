@@ -55,6 +55,12 @@ export interface Student {
   gender?: Gender;
   avatarColor?: string;
   photoUrl?: string; // Foto do aluno (base64 Data URL ou link web)
+  foto?: string; // Propriedade alternativa para foto
+  photo?: string;
+  fotoUrl?: string;
+  avatar?: string;
+  image?: string;
+  imagem?: string;
   behavior: BehaviorLevel; // 'calm' | 'moderate' | 'talkative'
   specialNeeds: SpecialNeedType[];
   specialNeedsNotes?: string;
@@ -234,6 +240,8 @@ export interface AttendanceRecord {
   studentId: string;
   studentName: string;
   matricula: string;
+  photoUrl?: string;
+  foto?: string;
   date: string; // 'YYYY-MM-DD'
   entryTime: string; // 'HH:mm:ss'
   timestamp: number;

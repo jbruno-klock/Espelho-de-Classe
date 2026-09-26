@@ -13,7 +13,7 @@ import {
   Unsubscribe
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { Institution, AppUser, Classroom, AttendanceRecord } from '../types';
+import { Institution, AppUser, Classroom, Student, AttendanceRecord } from '../types';
 import { INITIAL_INSTITUTIONS, INITIAL_USERS, INITIAL_CLASSROOMS } from '../utils/sampleData';
 
 // Initialize Firebase App
@@ -59,6 +59,40 @@ function sanitizeForFirestore<T>(data: T): T {
 }
 
 /**
+ * Normalizes student properties to ensure both photoUrl and foto (as well as aliases) are consistent.
+ */
+export function normalizeStudent(student: Student): Student {
+  const photo =
+    (student as any).foto ||
+    (student as any).photoUrl ||
+    (student as any).avatar ||
+    (student as any).image ||
+    (student as any).photo ||
+    (student as any).fotoUrl ||
+    (student as any).imagem;
+
+  if (photo && typeof photo === 'string' && photo.trim().length > 0) {
+    const trimmed = photo.trim();
+    return {
+      ...student,
+      photoUrl: trimmed,
+      foto: trimmed,
+    };
+  }
+  return student;
+}
+
+/**
+ * Normalizes all students in a classroom.
+ */
+export function normalizeClassroom(classroom: Classroom): Classroom {
+  return {
+    ...classroom,
+    students: (classroom.students || []).map(normalizeStudent),
+  };
+}
+
+/**
  * Initializes Firestore default seed data if collections are empty.
  */
 export async function seedInitialFirestoreData(): Promise<void> {
@@ -80,10 +114,10 @@ export async function seedInitialFirestoreData(): Promise<void> {
         batch.set(docRef, sanitizeForFirestore(user));
       }
 
-      // Seed Classrooms
+      // Seed Classrooms with normalized student photos
       for (const room of INITIAL_CLASSROOMS) {
         const docRef = doc(db, COLLECTIONS.CLASSROOMS, room.id);
-        batch.set(docRef, sanitizeForFirestore(room));
+        batch.set(docRef, sanitizeForFirestore(normalizeClassroom(room)));
       }
 
       await batch.commit();
@@ -149,7 +183,7 @@ export function subscribeToCloudData(callbacks: {
       (snapshot) => {
         if (!snapshot.empty) {
           const list: Classroom[] = [];
-          snapshot.forEach((d) => list.push(d.data() as Classroom));
+          snapshot.forEach((d) => list.push(normalizeClassroom(d.data() as Classroom)));
           callbacks.onClassrooms(list);
         }
       },
@@ -204,7 +238,8 @@ export async function deleteUserFromCloud(userId: string): Promise<void> {
 
 export async function syncClassroomToCloud(classroom: Classroom): Promise<void> {
   try {
-    await setDoc(doc(db, COLLECTIONS.CLASSROOMS, classroom.id), sanitizeForFirestore(classroom), { merge: true });
+    const normalized = normalizeClassroom(classroom);
+    await setDoc(doc(db, COLLECTIONS.CLASSROOMS, classroom.id), sanitizeForFirestore(normalized), { merge: true });
   } catch (e) {
     console.error('Error saving classroom to cloud:', e);
   }
@@ -232,7 +267,7 @@ export async function pushAllLocalDataToCloud(
       batch.set(doc(db, COLLECTIONS.USERS, user.id), sanitizeForFirestore(user), { merge: true });
     }
     for (const cls of classrooms) {
-      batch.set(doc(db, COLLECTIONS.CLASSROOMS, cls.id), sanitizeForFirestore(cls), { merge: true });
+      batch.set(doc(db, COLLECTIONS.CLASSROOMS, cls.id), sanitizeForFirestore(normalizeClassroom(cls)), { merge: true });
     }
     await batch.commit();
     console.log('✅ All local data successfully pushed to Firestore cloud.');
@@ -288,6 +323,8 @@ export async function recordAttendanceEntry(entry: {
   studentId: string;
   studentName: string;
   matricula: string;
+  photoUrl?: string;
+  foto?: string;
   date: string; // 'YYYY-MM-DD'
   entryTime: string; // 'HH:mm:ss'
   source?: 'nfc' | 'manual';
@@ -338,6 +375,7 @@ export async function recordAttendanceEntry(entry: {
     }
 
     // 3. New first-time attendance record for today!
+    const photo = entry.photoUrl || entry.foto;
     const newRecord: AttendanceRecord = {
       id: docId,
       institutionId: entry.institutionId,
@@ -346,6 +384,8 @@ export async function recordAttendanceEntry(entry: {
       studentId: entry.studentId,
       studentName: entry.studentName,
       matricula: entry.matricula,
+      photoUrl: photo,
+      foto: photo,
       date: entry.date,
       entryTime: entry.entryTime,
       timestamp: Date.now(),

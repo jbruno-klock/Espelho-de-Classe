@@ -89,8 +89,17 @@ export const StudentModal: React.FC<StudentModalProps> = ({
   const [avatarColor, setAvatarColor] = useState(
     initialStudent?.avatarColor || AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)]
   );
-  const [photoUrl, setPhotoUrl] = useState<string>(initialStudent?.photoUrl || '');
-  const [rawPhotoSrc, setRawPhotoSrc] = useState<string>(initialStudent?.photoUrl || '');
+  const existingPhoto =
+    initialStudent?.photoUrl ||
+    initialStudent?.foto ||
+    (initialStudent as any)?.avatar ||
+    (initialStudent as any)?.image ||
+    (initialStudent as any)?.photo ||
+    (initialStudent as any)?.fotoUrl ||
+    (initialStudent as any)?.imagem ||
+    '';
+  const [photoUrl, setPhotoUrl] = useState<string>(existingPhoto);
+  const [rawPhotoSrc, setRawPhotoSrc] = useState<string>(existingPhoto);
   const [verticalOffset, setVerticalOffset] = useState<number>(0.15); // 0.15 = 15% from top (head-safe default)
   const [photoZoom, setPhotoZoom] = useState<number>(1.0);
   const [isFramingAdjustOpen, setIsFramingAdjustOpen] = useState<boolean>(false);
@@ -277,6 +286,7 @@ export const StudentModal: React.FC<StudentModalProps> = ({
       gender,
       avatarColor,
       photoUrl: photoUrl.trim() || undefined,
+      foto: photoUrl.trim() || undefined,
       behavior,
       specialNeeds,
       specialNeedsNotes: specialNeedsNotes.trim() || undefined,

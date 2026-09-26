@@ -543,10 +543,12 @@ export const SeatingGrid: React.FC<SeatingGridProps> = ({
                     {student ? (
                       <div className="my-auto py-0.5">
                         <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
-                          {student.photoUrl ? (
+                          {(student.photoUrl || student.foto || (student as any).avatar || (student as any).image) ? (
                             <img
-                              src={student.photoUrl}
+                              src={student.photoUrl || student.foto || (student as any).avatar || (student as any).image}
                               alt={student.name}
+                              referrerPolicy="no-referrer"
+                              crossOrigin="anonymous"
                               className={`${
                                 isExtremeDensity ? 'w-3 h-4' : isUltraDensity ? 'w-3.5 h-4.5' : 'w-5 h-6.5 sm:w-6 sm:h-8'
                               } rounded-md object-cover shrink-0 shadow-xs border border-slate-200 dark:border-zinc-700`}

@@ -132,6 +132,12 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
   // Selected student and their classroom
   const [matchedStudent, setMatchedStudent] = useState<Student | null>(null);
   const [matchedClassroom, setMatchedClassroom] = useState<Classroom | null>(null);
+  const [imgError, setImgError] = useState<boolean>(false);
+
+  // Reset img error whenever matched student changes
+  useEffect(() => {
+    setImgError(false);
+  }, [matchedStudent?.id]);
 
   // Result info from recording
   const [attendanceResult, setAttendanceResult] = useState<{
@@ -161,6 +167,27 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
     return c.institutionId === effectiveUnidadeId || !c.institutionId;
   });
 
+  // Helper to extract student photo across all possible naming variations (e.g., photoUrl, foto, avatar, photo, image, etc.)
+  const getStudentPhotoUrl = (student?: Student | null): string | undefined => {
+    if (!student) return undefined;
+    const s = student as any;
+    const photo = s.foto || s.photoUrl || s.avatar || s.image || s.photo || s.fotoUrl || s.imagem;
+    return typeof photo === 'string' && photo.trim().length > 0 ? photo.trim() : undefined;
+  };
+
+  // Helper to ensure student object has normalized photo properties
+  const normalizeStudentData = (std: Student): Student => {
+    const photo = getStudentPhotoUrl(std);
+    if (photo) {
+      return {
+        ...std,
+        photoUrl: photo,
+        foto: photo,
+      };
+    }
+    return std;
+  };
+
   // Helper to find student in given list of classrooms
   const findStudentByMatricula = (rooms: Classroom[], query: string) => {
     const qLower = query.toLowerCase();
@@ -178,15 +205,15 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
 
         // 1. Exact matricula match
         if (stdMatricula && stdMatricula === qLower) {
-          return { student: std, classroom: cls };
+          return { student: normalizeStudentData(std), classroom: cls };
         }
         // 2. Numeric matricula match (e.g. "2026001" vs "MAT-2026001")
         if (qNumeric && stdMatNumeric && qNumeric === stdMatNumeric) {
-          return { student: std, classroom: cls };
+          return { student: normalizeStudentData(std), classroom: cls };
         }
         // 3. Fallback to roll number if matricula is not set or matches numeric rollNumber
         if (String(std.rollNumber) === query || (qNumeric && String(std.rollNumber) === qNumeric)) {
-          return { student: std, classroom: cls };
+          return { student: normalizeStudentData(std), classroom: cls };
         }
       }
     }
@@ -216,7 +243,13 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
           const snapshot = await getDocs(collection(db, COLLECTIONS.CLASSROOMS));
           if (!snapshot.empty) {
             const fetchedRooms: Classroom[] = [];
-            snapshot.forEach(d => fetchedRooms.push(d.data() as Classroom));
+            snapshot.forEach(d => {
+              const r = d.data() as Classroom;
+              fetchedRooms.push({
+                ...r,
+                students: (r.students || []).map(normalizeStudentData)
+              });
+            });
             setClassrooms(fetchedRooms);
             match = findStudentByMatricula(fetchedRooms, query);
           }
@@ -226,8 +259,10 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
       }
 
       if (match) {
-        setMatchedStudent(match.student);
+        const student = normalizeStudentData(match.student);
+        setMatchedStudent(student);
         setMatchedClassroom(match.classroom);
+        setImgError(false);
         // Save to localStorage for convenience next time
         try {
           localStorage.setItem(STORAGE_LAST_MATRICULA, query);
@@ -258,6 +293,7 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
     const dateStr = now.toISOString().split('T')[0];
     // HH:mm:ss (24h format)
     const timeStr = now.toLocaleTimeString('pt-BR', { hour12: false });
+    const studentPhoto = getStudentPhotoUrl(matchedStudent);
 
     try {
       const result = await recordAttendanceEntry({
@@ -267,6 +303,8 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
         studentId: matchedStudent.id,
         studentName: matchedStudent.name,
         matricula: matchedStudent.matricula || String(matchedStudent.rollNumber),
+        photoUrl: studentPhoto,
+        foto: studentPhoto,
         date: dateStr,
         entryTime: timeStr,
         source: 'nfc',
@@ -306,6 +344,7 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
     setMatchedClassroom(null);
     setAttendanceResult(null);
     setErrorMessage(null);
+    setImgError(false);
     setStep(1);
   };
 
@@ -420,185 +459,217 @@ export const NfcStudentCheckInView: React.FC<NfcStudentCheckInViewProps> = ({
         {/* ======================================================== */}
         {/* ETAPA 2: CONFIRMAÇÃO DE IDENTIDADE                      */}
         {/* ======================================================== */}
-        {step === 2 && matchedStudent && matchedClassroom && (
-          <div className="bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
-            <div className="text-center space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
-                Etapa 2 • Confirmação de Identidade
-              </span>
-              <h2 className="text-lg font-bold text-white font-display">
-                Confirma seus dados para registrar a entrada?
-              </h2>
-            </div>
+        {step === 2 && matchedStudent && matchedClassroom && (() => {
+          const studentPhoto = getStudentPhotoUrl(matchedStudent);
+          const hasValidPhoto = Boolean(studentPhoto && !imgError);
 
-            {/* Student Identity Card */}
-            <div className="bg-slate-900/90 border border-slate-700 rounded-2xl p-5 flex flex-col items-center text-center space-y-3 shadow-inner">
-              <div
-                className="w-20 h-24 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-xl border-2 border-white/20 overflow-hidden relative"
-                style={{ backgroundColor: matchedStudent.avatarColor || '#10b981' }}
-              >
-                {matchedStudent.photoUrl ? (
-                  <img
-                    src={matchedStudent.photoUrl}
-                    alt={matchedStudent.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  matchedStudent.rollNumber
-                )}
-              </div>
-
-              <div>
-                <h3 className="font-extrabold text-base text-white">
-                  {matchedStudent.name}
-                </h3>
-                {matchedStudent.nickname && (
-                  <p className="text-xs text-slate-400">
-                    "{matchedStudent.nickname}"
-                  </p>
-                )}
-              </div>
-
-              <div className="flex flex-wrap items-center justify-center gap-2 pt-1 w-full border-t border-slate-800">
-                <span className="px-2.5 py-1 bg-slate-800 rounded-lg text-xs font-semibold text-slate-300 border border-slate-700">
-                  Turma: <strong className="text-white">{matchedClassroom.name}</strong>
+          return (
+            <div className="bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
+              <div className="text-center space-y-1">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                  Etapa 2 • Confirmação de Identidade
                 </span>
-                <span className="px-2.5 py-1 bg-emerald-500/10 rounded-lg text-xs font-mono font-bold text-emerald-400 border border-emerald-500/20">
-                  Matrícula: {matchedStudent.matricula || matchedStudent.rollNumber}
-                </span>
+                <h2 className="text-lg font-bold text-white font-display">
+                  Confirma seus dados para registrar a entrada?
+                </h2>
+              </div>
+
+              {/* Student Identity Card */}
+              <div className="bg-slate-900/90 border border-slate-700 rounded-2xl p-5 flex flex-col items-center text-center space-y-3 shadow-inner">
+                <div className="relative mx-auto flex items-center justify-center">
+                  {hasValidPhoto ? (
+                    <img
+                      src={studentPhoto}
+                      alt={matchedStudent.name}
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
+                      onError={() => setImgError(true)}
+                      className="w-24 h-24 rounded-full object-cover mx-auto border-4 border-emerald-500 shadow-md block"
+                    />
+                  ) : (
+                    <div
+                      className="w-24 h-24 rounded-full flex items-center justify-center text-white font-black text-2xl shadow-md border-4 border-emerald-500 mx-auto"
+                      style={{ backgroundColor: matchedStudent.avatarColor || '#10b981' }}
+                    >
+                      {matchedStudent.rollNumber || (matchedStudent.name ? matchedStudent.name.charAt(0).toUpperCase() : '?')}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="font-extrabold text-base text-white">
+                    {matchedStudent.name}
+                  </h3>
+                  {matchedStudent.nickname && (
+                    <p className="text-xs text-slate-400">
+                      "{matchedStudent.nickname}"
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1 w-full border-t border-slate-800">
+                  <span className="px-2.5 py-1 bg-slate-800 rounded-lg text-xs font-semibold text-slate-300 border border-slate-700">
+                    Turma: <strong className="text-white">{matchedClassroom.name}</strong>
+                  </span>
+                  <span className="px-2.5 py-1 bg-emerald-500/10 rounded-lg text-xs font-mono font-bold text-emerald-400 border border-emerald-500/20">
+                    Matrícula: {matchedStudent.matricula || matchedStudent.rollNumber}
+                  </span>
+                </div>
+              </div>
+
+              {errorMessage && (
+                <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-2.5 text-rose-300 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={handleConfirmAttendance}
+                  disabled={isSubmitting}
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50 text-white font-bold rounded-2xl text-sm shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Registrando na Nuvem...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span>Sim, confirmar minha entrada</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  disabled={isSubmitting}
+                  className="w-full py-3 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-semibold rounded-2xl text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Não sou eu / Corrigir matrícula</span>
+                </button>
               </div>
             </div>
-
-            {errorMessage && (
-              <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-start gap-2.5 text-rose-300 text-xs">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={handleConfirmAttendance}
-                disabled={isSubmitting}
-                className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50 text-white font-bold rounded-2xl text-sm shadow-lg shadow-emerald-900/40 flex items-center justify-center gap-2 transition-all cursor-pointer"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Registrando na Nuvem...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-5 h-5" />
-                    <span>Sim, confirmar minha entrada</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                disabled={isSubmitting}
-                className="w-full py-3 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-semibold rounded-2xl text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                <span>Não sou eu / Corrigir matrícula</span>
-              </button>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ======================================================== */}
         {/* ETAPA 3: COMPROVANTE & SUCESSO                          */}
         {/* ======================================================== */}
-        {step === 3 && attendanceResult && matchedStudent && matchedClassroom && (
-          <div className="bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-6 text-center animate-in zoom-in-95 duration-200">
-            {attendanceResult.isFirstToday ? (
-              // Primeiro registro do dia (Sucesso em verde com animação)
-              <>
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border-2 border-emerald-500/40 mx-auto shadow-lg shadow-emerald-950">
-                  <CheckCircle2 className="w-9 h-9" />
-                </div>
+        {step === 3 && attendanceResult && matchedStudent && matchedClassroom && (() => {
+          const studentPhoto = getStudentPhotoUrl(matchedStudent);
+          const hasValidPhoto = Boolean(studentPhoto && !imgError);
 
-                <div className="space-y-1">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center justify-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Check-in Realizado com Sucesso!
+          return (
+            <div className="bg-slate-800/90 border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-6 text-center animate-in zoom-in-95 duration-200">
+              {attendanceResult.isFirstToday ? (
+                // Primeiro registro do dia (Sucesso em verde com animação)
+                <>
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border-2 border-emerald-500/40 mx-auto shadow-lg shadow-emerald-950">
+                    <CheckCircle2 className="w-9 h-9" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center justify-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Check-in Realizado com Sucesso!
+                    </span>
+                    <h2 className="text-xl font-black text-white font-display">
+                      Entrada Registrada
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Sua presença já foi transmitida para o mapa de sala do professor.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                // Já registrado hoje (aviso amigável sem sobrescrever horário original)
+                <>
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500/20 text-amber-400 border-2 border-amber-500/40 mx-auto">
+                    <Clock className="w-8 h-8" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
+                      Aviso de Presença
+                    </span>
+                    <h2 className="text-lg font-bold text-white font-display">
+                      Olá, {matchedStudent.name.split(' ')[0]}!
+                    </h2>
+                    <p className="text-xs text-slate-300">
+                      Sua entrada de hoje já estava registrada desde às{' '}
+                      <strong className="text-amber-400 font-mono font-bold">
+                        {attendanceResult.originalTime || attendanceResult.record.entryTime}
+                      </strong>.
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* Receipt Summary Card */}
+              <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 text-left space-y-2 text-xs">
+                <div className="flex items-center gap-3 py-2 border-b border-slate-800">
+                  {hasValidPhoto ? (
+                    <img
+                      src={studentPhoto}
+                      alt={matchedStudent.name}
+                      referrerPolicy="no-referrer"
+                      className="w-11 h-11 rounded-full object-cover border-2 border-emerald-500 shrink-0 shadow-xs"
+                    />
+                  ) : (
+                    <div
+                      className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0 border-2 border-emerald-500 shadow-xs"
+                      style={{ backgroundColor: matchedStudent.avatarColor || '#10b981' }}
+                    >
+                      {matchedStudent.rollNumber || (matchedStudent.name ? matchedStudent.name.charAt(0).toUpperCase() : '?')}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 block font-medium">Aluno Confirmado</span>
+                    <strong className="text-white text-sm font-bold truncate block">{matchedStudent.name}</strong>
+                  </div>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-800">
+                  <span className="text-slate-400">Turma:</span>
+                  <span className="text-slate-200 font-semibold">{matchedClassroom.name}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-slate-800">
+                  <span className="text-slate-400">Matrícula:</span>
+                  <span className="text-emerald-400 font-mono font-bold">
+                    {matchedStudent.matricula || matchedStudent.rollNumber}
                   </span>
-                  <h2 className="text-xl font-black text-white font-display">
-                    Entrada Registrada
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Sua presença já foi transmitida para o mapa de sala do professor.
-                  </p>
                 </div>
-              </>
-            ) : (
-              // Já registrado hoje (aviso amigável sem sobrescrever horário original)
-              <>
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500/20 text-amber-400 border-2 border-amber-500/40 mx-auto">
-                  <Clock className="w-8 h-8" />
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
-                    Aviso de Presença
+                <div className="flex justify-between py-1 border-b border-slate-800">
+                  <span className="text-slate-400">Data:</span>
+                  <span className="text-slate-200 font-mono">
+                    {new Date().toLocaleDateString('pt-BR')}
                   </span>
-                  <h2 className="text-lg font-bold text-white font-display">
-                    Olá, {matchedStudent.name.split(' ')[0]}!
-                  </h2>
-                  <p className="text-xs text-slate-300">
-                    Sua entrada de hoje já estava registrada desde às{' '}
-                    <strong className="text-amber-400 font-mono font-bold">
-                      {attendanceResult.originalTime || attendanceResult.record.entryTime}
-                    </strong>.
-                  </p>
                 </div>
-              </>
-            )}
+                <div className="flex justify-between py-1">
+                  <span className="text-slate-400">Horário de Entrada:</span>
+                  <strong className="text-emerald-400 font-mono text-sm">
+                    {attendanceResult.originalTime || attendanceResult.record.entryTime}
+                  </strong>
+                </div>
+              </div>
 
-            {/* Receipt Summary Card */}
-            <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 text-left space-y-2 text-xs">
-              <div className="flex justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-400">Aluno:</span>
-                <strong className="text-white">{matchedStudent.name}</strong>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-400">Turma:</span>
-                <span className="text-slate-200 font-semibold">{matchedClassroom.name}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-400">Matrícula:</span>
-                <span className="text-emerald-400 font-mono font-bold">
-                  {matchedStudent.matricula || matchedStudent.rollNumber}
-                </span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-slate-800">
-                <span className="text-slate-400">Data:</span>
-                <span className="text-slate-200 font-mono">
-                  {new Date().toLocaleDateString('pt-BR')}
-                </span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-slate-400">Horário de Entrada:</span>
-                <strong className="text-emerald-400 font-mono text-sm">
-                  {attendanceResult.originalTime || attendanceResult.record.entryTime}
-                </strong>
-              </div>
+              <button
+                type="button"
+                onClick={handleResetForAnother}
+                className="w-full py-3.5 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-2xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Registrar outro aluno</span>
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={handleResetForAnother}
-              className="w-full py-3.5 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-2xl text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Registrar outro aluno</span>
-            </button>
-          </div>
-        )}
+          );
+        })()}
 
       </main>
 

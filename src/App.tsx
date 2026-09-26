@@ -772,6 +772,7 @@ function EspelhoClasseApp() {
           return {
             ...student,
             photoUrl: photoUpdates[student.id],
+            foto: photoUpdates[student.id],
           };
         }
         return student;

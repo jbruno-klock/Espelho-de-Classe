@@ -41,6 +41,7 @@ type TargetField =
   | 'antiAffinities'
   | 'antiAffinitySeverity'
   | 'antiAffinityCategory'
+  | 'photoUrl'
   | 'notes';
 
 const FIELD_LABELS: Record<TargetField, string> = {
@@ -64,6 +65,7 @@ const FIELD_LABELS: Record<TargetField, string> = {
   antiAffinities: 'Desafinidades (Distanciar)',
   antiAffinitySeverity: 'Nível de Separação',
   antiAffinityCategory: 'Motivo do Distanciamento',
+  photoUrl: 'Foto do Aluno (URL / Link)',
   notes: 'Observações Gerais',
 };
 
@@ -307,7 +309,15 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
       return 'name';
     }
 
-    // 5. Notes / Observations
+    // 5. Photo / Avatar
+    if (
+      /^(foto|photo|avatar|imagem|foto_url|photourl|photo_url|fotourl|imagem_url|link_foto)$/.test(h) || 
+      h.includes('foto') || h.includes('photo') || h.includes('avatar')
+    ) {
+      return 'photoUrl';
+    }
+
+    // 6. Notes / Observations
     if (
       /^(observacoes|obs|notas|comentarios|notes|anotacoes)$/.test(h) || 
       h.includes('obs') || h.includes('nota') || h.includes('comentario') || 
@@ -351,6 +361,7 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
         antiAffinities: '',
         antiAffinitySeverity: '',
         antiAffinityCategory: '',
+        photoUrl: '',
         notes: '',
       };
 
@@ -461,6 +472,8 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
         nickname: rowData.nickname?.trim() || undefined,
         gender,
         avatarColor: AVATAR_COLORS[rowIdx % AVATAR_COLORS.length],
+        photoUrl: rowData.photoUrl?.trim() || undefined,
+        foto: rowData.photoUrl?.trim() || undefined,
         behavior,
         academicLevel,
         specialNeeds,
